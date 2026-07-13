@@ -106,6 +106,8 @@ enum class Phase : std::uint8_t {
 struct Cell {
   bool filled = false;
   PieceType type = PieceType::I;
+  // ANSI color used when drawing this cell (0–15). Set at lock time.
+  std::uint8_t color = 7;
 };
 
 struct ActivePiece {
@@ -127,6 +129,8 @@ struct GameConfig {
   // 0 = no hard-drop flash (also forced off when color is disabled).
   int hard_drop_flash_ms = kHardDropFlashMs;
   Randomizer randomizer = Randomizer::SevenBag;
+  // Hash custom/funk/freak shapes onto bright ANSI bg 8–15. Off → white (7).
+  bool freak_colors = true;
 };
 
 }  // namespace tp

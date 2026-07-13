@@ -5,7 +5,8 @@
 
 namespace tp {
 
-inline constexpr int kMaxKickTests = 5;
+// Classic SRS uses 5 tests; custom polyominoes need a larger freestyle set.
+inline constexpr int kMaxKickTests = 32;
 
 struct Kick {
   int dx = 0;
@@ -22,9 +23,9 @@ enum class SpinType : std::uint8_t {
   Full,
 };
 
-// Guideline SRS kick tests in *code* coordinates (y+ down).
-// Returns number of candidates written to out[0..n).
-// O → (0,0) only. Custom → legacy horizontal kicks.
+// Kick tests in *code* coordinates (y+ down).
+// Classic: SRS JLSTZ / I kick tables. O → (0,0) only.
+// Custom: freestyle wall/floor/ceiling kicks (no spin scoring).
 int srs_kick_tests(PieceType kind, int from_rot, int to_rot, Kick out[kMaxKickTests]);
 
 // 3-corner T rule + Mini/Full facing; 1×2 kick forces Full.

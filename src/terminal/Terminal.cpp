@@ -223,9 +223,14 @@ void Terminal::set_bg(int ansi_color) {
   if (!color_) {
     return;
   }
-  const int c = ansi_color < 0 ? 0 : (ansi_color > 7 ? 7 : ansi_color);
   char buf[16];
-  const int n = std::snprintf(buf, sizeof(buf), "\x1b[%dm", 40 + c);
+  int n = 0;
+  if (ansi_color >= 8 && ansi_color <= 15) {
+    n = std::snprintf(buf, sizeof(buf), "\x1b[%dm", 100 + (ansi_color - 8));
+  } else {
+    const int c = ansi_color < 0 ? 0 : (ansi_color > 7 ? 7 : ansi_color);
+    n = std::snprintf(buf, sizeof(buf), "\x1b[%dm", 40 + c);
+  }
   if (n > 0) {
     write(std::string_view(buf, static_cast<std::size_t>(n)));
   }

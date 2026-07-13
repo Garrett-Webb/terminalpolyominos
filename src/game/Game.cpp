@@ -270,13 +270,14 @@ void Game::set_active_for_test(ActivePiece piece) {
 }
 
 void Game::fill_row_for_test(int y, PieceType type) {
+  const int color = piece_color(PieceSpec::classic(type));
   for (int x = 0; x < kBoardWidth; ++x) {
-    state_.board.set(x, y, type);
+    state_.board.set(x, y, type, color);
   }
 }
 
 void Game::set_cell_for_test(int x, int y, PieceType type) {
-  state_.board.set(x, y, type);
+  state_.board.set(x, y, type, piece_color(PieceSpec::classic(type)));
 }
 
 bool Game::fits(const ActivePiece& piece) const {
@@ -460,7 +461,7 @@ void Game::lock_active(bool from_hard_drop) {
     const int x = state_.active.x + cells[i].x;
     const int y = state_.active.y + cells[i].y;
     if (state_.board.inside(x, y)) {
-      state_.board.set(x, y, locked.kind);
+      state_.board.set(x, y, locked.kind, piece_color(locked, config_.freak_colors));
     }
   }
   const auto ti = static_cast<std::size_t>(locked.kind);
@@ -613,7 +614,7 @@ void Game::add_lock_score(int cleared, SpinType spin) {
 
   int points = lock_points(cleared, spin, state_.level);
   if (difficult && state_.b2b_ready) {
-    // Guideline: action score × 1.5 (drop points excluded; those are added elsewhere).
+    // Difficult chain: action score × 1.5 (drop points excluded; those are added elsewhere).
     points += points / 2;
   }
 
@@ -626,7 +627,7 @@ void Game::add_lock_score(int cleared, SpinType spin) {
     state_.lines += cleared;
     state_.level = 1 + state_.lines / config_.lines_per_level;
   } else {
-    // No lines: break combo; B2B chain preserved (incl. 0-line T-spins).
+    // No lines: break combo; B2B chain preserved (incl. 0-line T-piece spins).
     state_.combo = 0;
   }
 

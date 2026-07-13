@@ -233,7 +233,7 @@ int App::run() {
       } else if (screen_ == Screen::Settings) {
         renderer_.draw_settings(menu_.view());
       } else {
-        renderer_.draw_game(game_.state());
+        renderer_.draw_game(game_.state(), game_.config().freak_colors);
       }
       ui_dirty_ = false;
     }

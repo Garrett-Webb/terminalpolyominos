@@ -492,6 +492,174 @@ void test_srs_kick_table_code_coords() {
 
   TP_CHECK(tp::srs_kick_tests(tp::PieceType::O, 0, 1, out) == 1);
   TP_CHECK((out[0] == tp::Kick{0, 0}));
+
+  const int nc = tp::srs_kick_tests(tp::PieceType::Custom, 0, 1, out);
+  TP_CHECK(nc > 5);
+  TP_CHECK((out[0] == tp::Kick{0, 0}));
+  bool has_vert = false;
+  bool has_diag = false;
+  bool has_floor = false;
+  bool has_ceil = false;
+  for (int i = 0; i < nc; ++i) {
+    if (out[i].dx == 0 && out[i].dy != 0) {
+      has_vert = true;
+    }
+    if (out[i].dx != 0 && out[i].dy != 0) {
+      has_diag = true;
+    }
+    if (out[i].dy > 0) {
+      has_floor = true;
+    }
+    if (out[i].dy < 0) {
+      has_ceil = true;
+    }
+  }
+  TP_CHECK(has_vert);
+  TP_CHECK(has_diag);
+  TP_CHECK(has_floor);
+  TP_CHECK(has_ceil);
+  // CW (0→1) prefers left wall kick before right among the first few after (0,0).
+  TP_CHECK((out[1] == tp::Kick{-1, 0}));
+  TP_CHECK((out[2] == tp::Kick{1, 0}));
+}
+
+tp::PieceSpec make_custom_bar() {
+  // Horizontal 1×4 bar; CW around origin becomes a tall column.
+  tp::PieceSpec s;
+  s.kind = tp::PieceType::Custom;
+  s.n = 4;
+  s.cells[0] = {0, 0};
+  s.cells[1] = {1, 0};
+  s.cells[2] = {2, 0};
+  s.cells[3] = {3, 0};
+  return s;
+}
+
+void test_custom_piece_color_hash() {
+  const tp::PieceSpec bar = make_custom_bar();
+  tp::PieceSpec bar_shuffled = bar;
+  bar_shuffled.cells[0] = {3, 0};
+  bar_shuffled.cells[1] = {0, 0};
+  bar_shuffled.cells[2] = {2, 0};
+  bar_shuffled.cells[3] = {1, 0};
+
+  const int on_a = tp::piece_color(bar, true);
+  const int on_b = tp::piece_color(bar_shuffled, true);
+  TP_CHECK(on_a == on_b);
+  TP_CHECK(on_a >= 8 && on_a <= 15);
+  TP_CHECK(tp::piece_color(bar, false) == 7);
+
+  // Different geometry should (usually) get a different bright color; at least
+  // stay in the bright range.
+  tp::PieceSpec tet = bar;
+  tet.n = 3;
+  tet.cells[0] = {0, 0};
+  tet.cells[1] = {1, 0};
+  tet.cells[2] = {0, 1};
+  const int tet_c = tp::piece_color(tet, true);
+  TP_CHECK(tet_c >= 8 && tet_c <= 15);
+
+  TP_CHECK(tp::piece_color(tp::PieceSpec::classic(tp::PieceType::T), true) ==
+           tp::piece_color(tp::PieceType::T));
+}
+
+void test_custom_wall_kick_left() {
+  tp::GameConfig cfg;
+  cfg.clear_flash_ms = 0;
+  cfg.hard_drop_flash_ms = 0;
+  tp::Game game(cfg);
+  game.reset(1);
+
+  // Flat bar at x=0; upright column would occupy (0,1..3) which are filled → need +1 kick.
+  for (int y = 1; y <= 3; ++y) {
+    game.set_cell_for_test(0, y);
+  }
+
+  tp::ActivePiece p;
+  p.spec = make_custom_bar();
+  p.x = 0;
+  p.y = 0;
+  p.rotation = 0;
+  p.alive = true;
+  game.set_active_for_test(p);
+  game.apply(tp::Action::RotateCW);
+  TP_CHECK(game.state().active.rotation == 1);
+  TP_CHECK(game.state().active.x == 1);
+  TP_CHECK(game.state().active.y == 0);
+}
+
+void test_custom_floor_kick() {
+  tp::GameConfig cfg;
+  cfg.clear_flash_ms = 0;
+  cfg.hard_drop_flash_ms = 0;
+  tp::Game game(cfg);
+  game.reset(1);
+
+  // Domino (0,0),(1,0) → CW upright (0,0),(0,1).
+  tp::PieceSpec s;
+  s.kind = tp::PieceType::Custom;
+  s.n = 2;
+  s.cells[0] = {0, 0};
+  s.cells[1] = {1, 0};
+
+  const int y = tp::kBoardHeight - 5;
+  // Block upright foot-cell for x = 2..8 so horizontal kicks cannot dodge,
+  // and block y-1 so a ceiling dodge is impossible.
+  for (int x = 2; x <= 8; ++x) {
+    game.set_cell_for_test(x, y + 1);
+    game.set_cell_for_test(x, y - 1);
+  }
+  // (0,+2) lands feet at y+3 — keep that row open.
+
+  tp::ActivePiece p;
+  p.spec = s;
+  p.x = 5;
+  p.y = y;
+  p.rotation = 0;
+  p.alive = true;
+  game.set_active_for_test(p);
+  game.apply(tp::Action::RotateCW);
+  TP_CHECK(game.state().active.rotation == 1);
+  TP_CHECK(game.state().active.y > y);
+}
+
+void test_custom_ceiling_kick() {
+  tp::GameConfig cfg;
+  cfg.clear_flash_ms = 0;
+  cfg.hard_drop_flash_ms = 0;
+  tp::Game game(cfg);
+  game.reset(1);
+
+  // Upright domino (0,0),(0,1) → CW flat (0,0),(-1,0).
+  tp::PieceSpec s;
+  s.kind = tp::PieceType::Custom;
+  s.n = 2;
+  s.cells[0] = {0, 0};
+  s.cells[1] = {0, 1};
+
+  const int y = 3;
+  // Seal the flat's row and the rows below so only an upward kick can work.
+  // Leave column 5 open for the live upright (5,y)/(5,y+1).
+  for (int x = 0; x < tp::kBoardWidth; ++x) {
+    if (x == 5) {
+      continue;
+    }
+    game.set_cell_for_test(x, y);
+    game.set_cell_for_test(x, y + 1);
+    game.set_cell_for_test(x, y + 2);
+  }
+  game.set_cell_for_test(4, y - 1);
+
+  tp::ActivePiece p;
+  p.spec = s;
+  p.x = 5;
+  p.y = y;
+  p.rotation = 0;
+  p.alive = true;
+  game.set_active_for_test(p);
+  game.apply(tp::Action::RotateCW);
+  TP_CHECK(game.state().active.rotation == 1);
+  TP_CHECK(game.state().active.y < y);
 }
 
 void test_srs_i_wall_kick() {
@@ -855,6 +1023,9 @@ int main() {
   test_pause();
   test_rotate_basic_kick();
   test_srs_kick_table_code_coords();
+  test_custom_wall_kick_left();
+  test_custom_floor_kick();
+  test_custom_ceiling_kick();
   test_srs_i_wall_kick();
   test_srs_jlstz_wall_kick();
   test_tspin_full_single();
@@ -867,5 +1038,6 @@ int main() {
   test_clear_flash_then_collapse();
   test_pieces_placed_counted_on_lock();
   test_hard_drop_flash();
+  test_custom_piece_color_hash();
   return tp::test::summary("tp_tests");
 }

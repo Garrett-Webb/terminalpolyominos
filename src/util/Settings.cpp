@@ -114,6 +114,20 @@ void apply_kv(Settings& s, const std::string& key, const std::string& value) {
     }
     return;
   }
+  if (key == "freak_colors") {
+    const std::string v = trim(value);
+    std::string lower;
+    lower.reserve(v.size());
+    for (unsigned char c : v) {
+      lower.push_back(static_cast<char>(std::tolower(c)));
+    }
+    if (lower == "0" || lower == "false" || lower == "off" || lower == "no") {
+      s.game.freak_colors = false;
+    } else if (lower == "1" || lower == "true" || lower == "on" || lower == "yes") {
+      s.game.freak_colors = true;
+    }
+    return;
+  }
 
   int n = 0;
   if (!parse_int(value, n) || n < 0) {
@@ -191,7 +205,9 @@ std::string Settings::serialize() const {
       << "lines_per_level=" << game.lines_per_level << '\n'
       << "next_count=" << game.next_count << "   # 1.." << kNextQueueMax << '\n'
       << "randomizer=" << randomizer_token(game.randomizer)
-      << "   # 7bag | 7+1 | random\n"
+      << "   # 7bag | 7+1 | random | torture | funk | freak\n"
+      << "freak_colors=" << (game.freak_colors ? "on" : "off")
+      << "   # bright hashed colors for custom pieces\n"
       << "#\n"
       << "# Keys — comma-separated tokens (left/right/up/down/space/enter/esc, or a letter).\n"
       << "# Ctrl+C always quits. Invalid tokens are ignored; empty lists keep defaults.\n"
@@ -266,7 +282,8 @@ Settings Settings::load_or_create() {
   // Upgrade older rc files missing newer keys.
   if (read_file(primary).empty() || text.find("key_settings=") == std::string::npos ||
       text.find("randomizer=") == std::string::npos ||
-      text.find("next_count=") == std::string::npos) {
+      text.find("next_count=") == std::string::npos ||
+      text.find("freak_colors=") == std::string::npos) {
     (void)s.save();
   }
   return s;

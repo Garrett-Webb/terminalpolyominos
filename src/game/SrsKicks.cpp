@@ -1,97 +1,148 @@
 #include "game/SrsKicks.hpp"
 
+#include <cstdlib>
+
 namespace tp {
 namespace {
 
 // Wiki tables use y+ up. Stored here with y negated (code y+ down).
 // Indexed [from][to] for the eight adjacent transitions; unused pairs unused.
 
-constexpr Kick kJlstz[4][4][kMaxKickTests] = {
+constexpr Kick kJlstz[4][4][5] = {
     // from 0
     {
-        {},  // 0→0 unused
-        // 0→R (wiki: (0,0) (-1,0) (-1,+1) (0,-2) (-1,-2))
+        {},
         {{0, 0}, {-1, 0}, {-1, -1}, {0, 2}, {-1, 2}},
         {},
-        // 0→L
         {{0, 0}, {1, 0}, {1, -1}, {0, 2}, {1, 2}},
     },
     // from R (1)
     {
-        // R→0
         {{0, 0}, {1, 0}, {1, 1}, {0, -2}, {1, -2}},
         {},
-        // R→2
         {{0, 0}, {1, 0}, {1, 1}, {0, -2}, {1, -2}},
         {},
     },
     // from 2
     {
         {},
-        // 2→R
         {{0, 0}, {-1, 0}, {-1, -1}, {0, 2}, {-1, 2}},
         {},
-        // 2→L
         {{0, 0}, {1, 0}, {1, -1}, {0, 2}, {1, 2}},
     },
     // from L (3)
     {
-        // L→0
         {{0, 0}, {-1, 0}, {-1, 1}, {0, -2}, {-1, -2}},
         {},
-        // L→2
         {{0, 0}, {-1, 0}, {-1, 1}, {0, -2}, {-1, -2}},
         {},
     },
 };
 
-constexpr Kick kI[4][4][kMaxKickTests] = {
+constexpr Kick kI[4][4][5] = {
     {
         {},
-        // 0→R (wiki: (0,0) (-2,0) (+1,0) (-2,-1) (+1,+2))
         {{0, 0}, {-2, 0}, {1, 0}, {-2, 1}, {1, -2}},
         {},
-        // 0→L
         {{0, 0}, {-1, 0}, {2, 0}, {-1, -2}, {2, 1}},
     },
     {
-        // R→0
         {{0, 0}, {2, 0}, {-1, 0}, {2, -1}, {-1, 2}},
         {},
-        // R→2
         {{0, 0}, {-1, 0}, {2, 0}, {-1, -2}, {2, 1}},
         {},
     },
     {
         {},
-        // 2→R
         {{0, 0}, {1, 0}, {-2, 0}, {1, 2}, {-2, -1}},
         {},
-        // 2→L
         {{0, 0}, {2, 0}, {-1, 0}, {2, -1}, {-1, 2}},
     },
     {
-        // L→0
         {{0, 0}, {1, 0}, {-2, 0}, {1, 2}, {-2, -1}},
         {},
-        // L→2
         {{0, 0}, {-2, 0}, {1, 0}, {-2, 1}, {1, -2}},
         {},
     },
-};
-
-constexpr Kick kCustomHorizontal[kMaxKickTests] = {
-    {0, 0}, {-1, 0}, {1, 0}, {-2, 0}, {2, 0},
 };
 
 bool adjacent(int from, int to) {
   return ((from + 1) & 3) == to || ((from + 3) & 3) == to;
 }
 
-void copy_five(const Kick src[kMaxKickTests], Kick out[kMaxKickTests]) {
-  for (int i = 0; i < kMaxKickTests; ++i) {
+void copy_n(const Kick* src, int count, Kick out[kMaxKickTests]) {
+  for (int i = 0; i < count; ++i) {
     out[i] = src[i];
   }
+}
+
+// Freestyle kicks for arbitrary polyominoes (≤4×4). Tries small wall/floor/ceiling
+// offsets before larger ones. CW prefers leftward first; CCW prefers rightward —
+// similar bias to JLSTZ — and floor (y+) before ceiling (y−).
+int fill_custom_kicks(bool cw, Kick out[kMaxKickTests]) {
+  const int hx = cw ? -1 : 1;  // preferred horizontal sign
+  int n = 0;
+
+  auto already = [&](int dx, int dy) {
+    for (int i = 0; i < n; ++i) {
+      if (out[i].dx == dx && out[i].dy == dy) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  auto push = [&](int dx, int dy) {
+    if (n >= kMaxKickTests || already(dx, dy)) {
+      return;
+    }
+    out[n++] = {dx, dy};
+  };
+
+  push(0, 0);
+
+  // Manhattan rings 1..4, axis extent capped at 3 (enough for 4×4 bbox pivots).
+  for (int man = 1; man <= 4; ++man) {
+    Kick ring[64];
+    int rn = 0;
+    for (int dx = -3; dx <= 3; ++dx) {
+      for (int dy = -3; dy <= 3; ++dy) {
+        if (dx == 0 && dy == 0) {
+          continue;
+        }
+        if (std::abs(dx) + std::abs(dy) != man) {
+          continue;
+        }
+        ring[rn++] = {dx, dy};
+      }
+    }
+
+    // Sort ring: prefer pure horizontal, then pure vertical, then diagonals;
+    // hx-matching dx first; positive dy (floor) before negative (ceiling).
+    for (int i = 0; i < rn; ++i) {
+      for (int j = i + 1; j < rn; ++j) {
+        auto key = [&](const Kick& k) {
+          const bool horiz = k.dy == 0;
+          const bool vert = k.dx == 0;
+          const int axis = horiz ? 0 : (vert ? 1 : 2);
+          const int hx_pref = (k.dx == 0) ? 0 : ((k.dx * hx > 0) ? 0 : 1);
+          const int floor_pref = (k.dy > 0) ? 0 : ((k.dy < 0) ? 1 : 0);
+          return axis * 1000 + hx_pref * 100 + floor_pref * 10 + std::abs(k.dx) + std::abs(k.dy);
+        };
+        if (key(ring[j]) < key(ring[i])) {
+          const Kick tmp = ring[i];
+          ring[i] = ring[j];
+          ring[j] = tmp;
+        }
+      }
+    }
+
+    for (int i = 0; i < rn; ++i) {
+      push(ring[i].dx, ring[i].dy);
+    }
+  }
+
+  return n;
 }
 
 }  // namespace
@@ -105,8 +156,8 @@ int srs_kick_tests(PieceType kind, int from_rot, int to_rot, Kick out[kMaxKickTe
     return 1;
   }
   if (kind == PieceType::Custom) {
-    copy_five(kCustomHorizontal, out);
-    return kMaxKickTests;
+    const bool cw = ((from + 1) & 3) == to;
+    return fill_custom_kicks(cw, out);
   }
   if (from == to || !adjacent(from, to)) {
     out[0] = {0, 0};
@@ -114,13 +165,12 @@ int srs_kick_tests(PieceType kind, int from_rot, int to_rot, Kick out[kMaxKickTe
   }
 
   if (kind == PieceType::I) {
-    copy_five(kI[from][to], out);
-    return kMaxKickTests;
+    copy_n(kI[from][to], 5, out);
+    return 5;
   }
 
-  // J L S T Z (and any other classic)
-  copy_five(kJlstz[from][to], out);
-  return kMaxKickTests;
+  copy_n(kJlstz[from][to], 5, out);
+  return 5;
 }
 
 SpinType classify_tspin(const Board& board, int piece_x, int piece_y, int rotation,

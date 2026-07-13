@@ -93,6 +93,19 @@ void test_next_count_parse() {
   TP_CHECK(c.game.next_count == tp::kNextQueueMax);
 }
 
+void test_freak_colors_parse() {
+  TP_CHECK(tp::Settings{}.game.freak_colors);
+  const tp::Settings off = tp::Settings::parse("freak_colors=off\n");
+  TP_CHECK(!off.game.freak_colors);
+  const tp::Settings on = tp::Settings::parse("freak_colors=on\n");
+  TP_CHECK(on.game.freak_colors);
+  TP_CHECK(!tp::Settings::parse("freak_colors=false\n").game.freak_colors);
+  TP_CHECK(tp::Settings::parse("freak_colors=1\n").game.freak_colors);
+  tp::Settings s;
+  s.game.freak_colors = false;
+  TP_CHECK(!tp::Settings::parse(s.serialize()).game.freak_colors);
+}
+
 void test_ctrl_c_always_quits() {
   tp::Input input;
   input.on_key(tp::KeyEvent{tp::Key::CtrlC, 0});
@@ -110,6 +123,7 @@ int main() {
   test_keybind_parse();
   test_randomizer_parse();
   test_next_count_parse();
+  test_freak_colors_parse();
   test_ctrl_c_always_quits();
   return tp::test::summary("tp_settings_tests");
 }

@@ -8,7 +8,7 @@
   <developer_name>terminalpolyominos contributors</developer_name>
   <description>
     <p>
-      Lightweight Guideline-style falling-block game for the terminal. Hold, ghost piece,
+      Lightweight colored polyomino stacking game for the terminal. Hold, ghost piece,
       lock delay, configurable keys and timing. Run it inside a terminal emulator.
     </p>
   </description>
@@ -27,7 +27,7 @@
     <binary>terminalpolyominos</binary>
   </provides>
   <releases>
-    <release version="0.2.3" date="2026-07-13"/>
+    <release version="0.2.7" date="2026-07-13"/>
   </releases>
   <content_rating type="oars-1.1"/>
 </component>

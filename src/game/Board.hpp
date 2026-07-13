@@ -17,7 +17,7 @@ class Board {
   [[nodiscard]] const Cell& at(int x, int y) const;
   Cell& at(int x, int y);
 
-  void set(int x, int y, PieceType type);
+  void set(int x, int y, PieceType type, int color = -1);
   void clear_cell(int x, int y);
 
   // Returns number of lines cleared (0–4).

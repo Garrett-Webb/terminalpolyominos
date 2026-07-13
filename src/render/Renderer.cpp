@@ -84,7 +84,7 @@ void Renderer::Canvas::fg(int color) {
 void Renderer::Canvas::bg(int color) {
   if (color < 0) {
     pen_.bg = -1;
-  } else if (color > 7) {
+  } else if (color > 15) {
     pen_.bg = 7;
   } else {
     pen_.bg = static_cast<std::int8_t>(color);
@@ -140,7 +140,12 @@ void Renderer::Canvas::emit_sgr(std::string& out, const Glyph& g) const {
   }
   if (g.bg >= 0) {
     char tmp[16];
-    const int n = std::snprintf(tmp, sizeof(tmp), "\x1b[%dm", 40 + g.bg);
+    int n = 0;
+    if (g.bg >= 8) {
+      n = std::snprintf(tmp, sizeof(tmp), "\x1b[%dm", 100 + (g.bg - 8));
+    } else {
+      n = std::snprintf(tmp, sizeof(tmp), "\x1b[%dm", 40 + g.bg);
+    }
     if (n > 0) {
       out.append(tmp, static_cast<std::size_t>(n));
     }
@@ -307,10 +312,8 @@ void Renderer::draw_box_title(Canvas& f, int row, int col, int inner_w, std::str
   f.text('+');
 }
 
-void Renderer::cell(Canvas& f, const Layout& lay, int row, int col, bool filled, PieceType type,
+void Renderer::cell(Canvas& f, const Layout& lay, int row, int col, bool filled, int color,
                     bool ghost, bool flash) {
-  const int color = piece_color(type);
-
   for (int dy = 0; dy < lay.cell_h; ++dy) {
     f.cup(row + dy, col);
     if (flash) {
@@ -371,7 +374,7 @@ void Renderer::cell(Canvas& f, const Layout& lay, int row, int col, bool filled,
 }
 
 void Renderer::piece_preview(Canvas& f, const Layout& lay, int row, int col, int panel_w,
-                             const PieceSpec& spec) {
+                             const PieceSpec& spec, bool freak_colors) {
   Offset cells[kMaxPieceCells];
   int n = 0;
   piece_cells(spec, 0, cells, n);
@@ -416,8 +419,8 @@ void Renderer::piece_preview(Canvas& f, const Layout& lay, int row, int col, int
       if (!grid[y][x]) {
         continue;
       }
-      cell(f, lay, row + offset_y + y * lay.cell_h, col + offset_x + x * lay.cell_w, true, spec.kind,
-           false);
+      cell(f, lay, row + offset_y + y * lay.cell_h, col + offset_x + x * lay.cell_w, true,
+           piece_color(spec, freak_colors), false);
     }
   }
 }
@@ -471,7 +474,7 @@ void Renderer::draw_too_small() {
   canvas_.present(term_);
 }
 
-void Renderer::draw_game(const GameState& state) {
+void Renderer::draw_game(const GameState& state, bool freak_colors) {
   const TermSize sz = term_.size();
   const Layout lay = compute_layout(sz);
   canvas_.begin(sz);
@@ -492,7 +495,8 @@ void Renderer::draw_game(const GameState& state) {
 
   const int hold_content_col = lay.hold_col + 1;
   if (state.hold.has_value()) {
-    piece_preview(canvas_, lay, lay.hold_row + 2, hold_content_col, lay.side_inner_w, *state.hold);
+    piece_preview(canvas_, lay, lay.hold_row + 2, hold_content_col, lay.side_inner_w, *state.hold,
+                  freak_colors);
   } else {
     const int slot_h = 4 * lay.cell_h;
     for (int y = 0; y < slot_h; ++y) {
@@ -545,8 +549,8 @@ void Renderer::draw_game(const GameState& state) {
   bool ghost_mask[kBoardHeight][kBoardWidth]{};
   bool active_mask[kBoardHeight][kBoardWidth]{};
   bool lock_flash_mask[kBoardHeight][kBoardWidth]{};
-  PieceType active_type = PieceType::I;
-  PieceType ghost_type = PieceType::I;
+  int active_color = 7;
+  int ghost_color = 7;
 
   if (state.lock_flash_ms > 0 && state.lock_flash.alive) {
     Offset cells[kMaxPieceCells];
@@ -565,7 +569,7 @@ void Renderer::draw_game(const GameState& state) {
     Offset cells[kMaxPieceCells];
     int n = 0;
     piece_cells(state.ghost.spec, state.ghost.rotation, cells, n);
-    ghost_type = state.ghost.kind();
+    ghost_color = piece_color(state.ghost.spec, freak_colors);
     for (int i = 0; i < n; ++i) {
       const int x = state.ghost.x + cells[i].x;
       const int y = state.ghost.y + cells[i].y;
@@ -578,7 +582,7 @@ void Renderer::draw_game(const GameState& state) {
     Offset cells[kMaxPieceCells];
     int n = 0;
     piece_cells(state.active.spec, state.active.rotation, cells, n);
-    active_type = state.active.kind();
+    active_color = piece_color(state.active.spec, freak_colors);
     for (int i = 0; i < n; ++i) {
       const int x = state.active.x + cells[i].x;
       const int y = state.active.y + cells[i].y;
@@ -602,18 +606,18 @@ void Renderer::draw_game(const GameState& state) {
     for (int x = 0; x < kBoardWidth; ++x) {
       const int col = lay.field_col + 1 + x * lay.cell_w;
       if (state.clear_flash_ms > 0 && state.clear_rows[static_cast<std::size_t>(by)]) {
-        cell(canvas_, lay, row, col, true, PieceType::I, false, true);
+        cell(canvas_, lay, row, col, true, 7, false, true);
       } else if (lock_flash_mask[by][x]) {
         // White flash only — caller disables anim when color is off.
-        cell(canvas_, lay, row, col, true, PieceType::I, false, true);
+        cell(canvas_, lay, row, col, true, 7, false, true);
       } else if (active_mask[by][x]) {
-        cell(canvas_, lay, row, col, true, active_type, false);
+        cell(canvas_, lay, row, col, true, active_color, false);
       } else if (state.board.at(x, by).filled) {
-        cell(canvas_, lay, row, col, true, state.board.at(x, by).type, false);
+        cell(canvas_, lay, row, col, true, state.board.at(x, by).color, false);
       } else if (ghost_mask[by][x]) {
-        cell(canvas_, lay, row, col, true, ghost_type, true);
+        cell(canvas_, lay, row, col, true, ghost_color, true);
       } else {
-        cell(canvas_, lay, row, col, false, PieceType::I, false);
+        cell(canvas_, lay, row, col, false, 7, false);
       }
     }
   }
@@ -635,7 +639,7 @@ void Renderer::draw_game(const GameState& state) {
   const int shown = std::max(1, std::min(state.next_count, kNextQueueMax));
   for (int i = 0; i < shown; ++i) {
     piece_preview(canvas_, lay, lay.next_row + 1 + i * preview_stride, next_content_col,
-                  lay.side_inner_w, state.next[static_cast<std::size_t>(i)]);
+                  lay.side_inner_w, state.next[static_cast<std::size_t>(i)], freak_colors);
   }
   // Erase unused lower slots when the queue is shorter than max.
   const int used_h = shown * preview_stride;
@@ -754,6 +758,8 @@ const char* settings_label(SettingsItem item) {
       return "Next queue";
     case SettingsItem::Randomizer:
       return "Randomizer";
+    case SettingsItem::FreakColors:
+      return "Freak colors";
     case SettingsItem::KeyLeft:
       return "Key left";
     case SettingsItem::KeyRight:
@@ -821,6 +827,8 @@ std::string settings_value(const Settings& s, SettingsItem item) {
           break;
       }
       return "7-bag";
+    case SettingsItem::FreakColors:
+      return s.game.freak_colors ? "on" : "off";
     case SettingsItem::KeyLeft:
       return k.format_list(k.left);
     case SettingsItem::KeyRight:

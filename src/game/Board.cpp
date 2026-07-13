@@ -31,10 +31,17 @@ Cell& Board::at(int x, int y) {
   return cells_[static_cast<std::size_t>(index(x, y))];
 }
 
-void Board::set(int x, int y, PieceType type) {
+void Board::set(int x, int y, PieceType type, int color) {
   Cell& c = at(x, y);
   c.filled = true;
   c.type = type;
+  if (color < 0) {
+    c.color = 7;
+  } else if (color > 15) {
+    c.color = 7;
+  } else {
+    c.color = static_cast<std::uint8_t>(color);
+  }
 }
 
 void Board::clear_cell(int x, int y) {

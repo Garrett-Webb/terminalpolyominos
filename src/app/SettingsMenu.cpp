@@ -107,6 +107,11 @@ void SettingsMenu::adjust(int delta) {
     mark_dirty();
     return;
   }
+  if (item == SettingsItem::FreakColors) {
+    draft_.game.freak_colors = !draft_.game.freak_colors;
+    mark_dirty();
+    return;
+  }
   if (!is_timing(item)) {
     return;
   }
@@ -179,6 +184,10 @@ void SettingsMenu::reset_defaults() {
 void SettingsMenu::activate() {
   const auto item = static_cast<SettingsItem>(selected_);
   if (item == SettingsItem::Randomizer) {
+    adjust(1);
+    return;
+  }
+  if (item == SettingsItem::FreakColors) {
     adjust(1);
     return;
   }

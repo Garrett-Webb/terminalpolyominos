@@ -20,6 +20,7 @@ enum class SettingsItem : std::uint8_t {
   LinesPerLevel,
   NextCount,
   Randomizer,
+  FreakColors,
   KeyLeft,
   KeyRight,
   KeySoftDrop,

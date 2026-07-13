@@ -36,7 +36,7 @@ class Renderer {
 
   void draw_title();
   void draw_too_small();
-  void draw_game(const GameState& state);
+  void draw_game(const GameState& state, bool freak_colors = true);
   void draw_settings(const SettingsMenuView& menu);
 
   // Next draw starts from a blank grid (needed when switching screens that
@@ -95,11 +95,11 @@ class Renderer {
     bool last_empty_ = false;
   };
 
-  void cell(Canvas& f, const Layout& lay, int row, int col, bool filled, PieceType type,
-            bool ghost, bool flash = false);
+  void cell(Canvas& f, const Layout& lay, int row, int col, bool filled, int color, bool ghost,
+            bool flash = false);
   // Draws a piece centered in a panel of width panel_w (columns) and height 4 cells.
   void piece_preview(Canvas& f, const Layout& lay, int row, int col, int panel_w,
-                     const PieceSpec& spec);
+                     const PieceSpec& spec, bool freak_colors);
   void hline(Canvas& f, int row, int col, int inner_width, char edge, char fill);
   void draw_box_title(Canvas& f, int row, int col, int inner_w, std::string_view title);
 

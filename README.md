@@ -15,7 +15,7 @@ the CPU.
 **Gameplay highlights**
 
 - Hold, ghost piece, lock delay, soft / hard / sonic drop
-- Guideline **SRS** rotation (classic pieces) with **T-spin** Mini / Full scoring
+- Classic **SRS** wall-kick rotation with **T-piece spin** Mini / Full scoring
 - **Back-to-back** (×1.5 on difficult clears) and **combo** (`50 × n × level`)
 - Remappable keys and timing via an in-game settings menu (`o`)
 - Six piece randomizers — from classic 7-bag to generated “freak” polyominoes
@@ -25,9 +25,11 @@ the CPU.
 
 ### Rotation & scoring
 
-Classic **I O T S Z J L** use **SRS** wall-kick tables (separate **JLSTZ** and **I** tests; **O** does not kick). Generated **Custom** pieces (funk / freak) keep a simple horizontal kick list.
+Classic **I O T S Z J L** use **SRS** wall-kick tables (separate **JLSTZ** and **I** tests; **O** does not kick). Generated **Custom** pieces (funk / freak) use a larger freestyle kick set — wall, floor, and ceiling offsets up to 3 cells, ordered small-first with CW/CCW bias — but **no** spin score multipliers.
 
-**T-spins** (T piece only): if the last successful action before lock was a rotate, and at least three of the four diagonal corners around the T’s center are filled (walls count):
+Custom piece colors (when **Freak colors** is on, default): each shape hashes to a **bright** ANSI background (8–15), so they don’t reuse classic red/green/yellow/…. Turn the setting **off** for plain white customs if bright bgs clash with your terminal theme.
+
+**T-piece spins** (T only): if the last successful action before lock was a rotate, and at least three of the four diagonal corners around the T’s center are filled (walls count):
 
 | | Condition |
 |---|---|
@@ -39,11 +41,11 @@ A move, soft/sonic/hard drop after the rotate cancels the spin (even with 0 cell
 | Clear | Base × level | Notes |
 |---|---|---|
 | Single / Double / Triple / Quad | 100 / 300 / 500 / 800 | Ordinary |
-| Mini T-spin (0 / 1 / 2 lines) | 100 / 200 / 400 | Difficult if lines > 0 |
-| T-spin (0 / 1 / 2 / 3 lines) | 400 / 800 / 1200 / 1600 | Difficult if lines > 0 |
+| Mini T-piece spin (0 / 1 / 2 lines) | 100 / 200 / 400 | Difficult if lines > 0 |
+| T-piece spin (0 / 1 / 2 / 3 lines) | 400 / 800 / 1200 / 1600 | Difficult if lines > 0 |
 | Soft / sonic / hard drop | +1 / +2 per cell | Not multiplied by B2B |
 
-**Difficult** clears (**Quad**, or any T-spin that clears lines) arm **B2B**: the next difficult clear scores **×1.5**. Ordinary singles/doubles/triples break the chain; 0-line locks do not. **Combo** awards `50 × combo × level` on consecutive line-clearing locks (first clear in a streak has no combo bonus).
+**Difficult** clears (**Quad**, or any T-piece spin that clears lines) arm **B2B**: the next difficult clear scores **×1.5**. Ordinary singles/doubles/triples break the chain; 0-line locks do not. **Combo** awards `50 × combo × level` on consecutive line-clearing locks (first clear in a streak has no combo bonus).
 
 HUD shows **Combo** and a **B2B** tag when the chain is armed.
 
@@ -144,7 +146,7 @@ cmake --install build --prefix ~/.local
 
 | Path | Role |
 |---|---|
-| `src/game/` | Pure engine (`tp_game`) — bag, SRS kicks, T-spin / B2B / combo, board |
+| `src/game/` | Pure engine (`tp_game`) — bag, kick tables, T-piece spin / B2B / combo, board |
 | `src/app/` | Main loop, screens, settings menu |
 | `src/terminal/` | Raw TTY, ANSI, key decode |
 | `src/input/` | Keybinds → actions |
@@ -161,7 +163,7 @@ cmake --install build --prefix ~/.local
 
 (`$XDG_CONFIG_HOME/tpoly/.tpolyrc` if set.) Legacy `~/.tpolyrc` is read if the XDG file is missing.
 
-Timing keys: `move_interval_ms`, `soft_drop_interval_ms`, `release_ms`, `lock_delay_ms`, `lines_per_level`, `next_count` (1–5), `randomizer` (`7bag`, `7+1`, `random`, `torture`, `funk`, `freak`).
+Timing keys: `move_interval_ms`, `soft_drop_interval_ms`, `release_ms`, `lock_delay_ms`, `lines_per_level`, `next_count` (1–5), `randomizer` (`7bag`, `7+1`, `random`, `torture`, `funk`, `freak`), `freak_colors` (`on` / `off` — hashed bright colors for custom pieces).
 
 Keybind keys (comma-separated tokens, e.g. `left,a,h`): `key_left`, `key_right`, `key_soft_drop`, `key_hard_drop`, `key_sonic_drop`, `key_rotate_cw`, `key_rotate_ccw`, `key_hold`, `key_pause`, `key_quit`, `key_restart`, `key_settings`.
 

@@ -1,6 +1,7 @@
 #include "game/Piece.hpp"
 
 #include <algorithm>
+#include <cstdint>
 
 namespace tp {
 namespace {
@@ -121,11 +122,49 @@ int piece_color(PieceType type) {
     case PieceType::L:
       return 3;  // yellow/orange stand-in
     case PieceType::Custom:
-      return 7;  // white
+      return 7;  // white (shape-specific color uses PieceSpec overload)
     case PieceType::Count:
       break;
   }
   return 7;
+}
+
+int piece_color(const PieceSpec& spec, bool freak_colors) {
+  if (!spec.is_custom()) {
+    return piece_color(spec.kind);
+  }
+  if (!freak_colors) {
+    return 7;
+  }
+
+  // FNV-1a over sorted cell keys so equal shapes match regardless of array order.
+  constexpr std::uint32_t kOffset = 2166136261u;
+  constexpr std::uint32_t kPrime = 16777619u;
+  std::uint8_t keys[kMaxPieceCells];
+  const int n = std::max(0, std::min(spec.n, kMaxPieceCells));
+  for (int i = 0; i < n; ++i) {
+    const int x = spec.cells[static_cast<std::size_t>(i)].x & 7;
+    const int y = spec.cells[static_cast<std::size_t>(i)].y & 7;
+    keys[static_cast<std::size_t>(i)] = static_cast<std::uint8_t>(x | (y << 3));
+  }
+  for (int i = 0; i < n; ++i) {
+    for (int j = i + 1; j < n; ++j) {
+      if (keys[static_cast<std::size_t>(j)] < keys[static_cast<std::size_t>(i)]) {
+        const std::uint8_t tmp = keys[static_cast<std::size_t>(i)];
+        keys[static_cast<std::size_t>(i)] = keys[static_cast<std::size_t>(j)];
+        keys[static_cast<std::size_t>(j)] = tmp;
+      }
+    }
+  }
+
+  std::uint32_t h = kOffset;
+  h ^= static_cast<std::uint32_t>(n);
+  h *= kPrime;
+  for (int i = 0; i < n; ++i) {
+    h ^= keys[static_cast<std::size_t>(i)];
+    h *= kPrime;
+  }
+  return 8 + static_cast<int>(h % 8);  // bright 8–15
 }
 
 const char* piece_name(PieceType type) {

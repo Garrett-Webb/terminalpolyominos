@@ -44,11 +44,27 @@ void test_rebind() {
            tp::Action::SonicDrop);
 }
 
+void test_toggle_freak_colors() {
+  tp::SettingsMenu menu;
+  tp::Settings base;
+  TP_CHECK(base.game.freak_colors);
+  menu.open(base);
+  for (int i = 0; i < static_cast<int>(tp::SettingsItem::FreakColors); ++i) {
+    menu.on_key(tp::KeyEvent{tp::Key::Down, 0});
+  }
+  menu.on_key(tp::KeyEvent{tp::Key::Right, 0});
+  TP_CHECK(!menu.draft().game.freak_colors);
+  TP_CHECK(menu.dirty());
+  menu.on_key(tp::KeyEvent{tp::Key::Enter, 0});
+  TP_CHECK(menu.draft().game.freak_colors);
+}
+
 }  // namespace
 
 int main() {
   test_adjust_timing();
   test_save_and_back();
   test_rebind();
+  test_toggle_freak_colors();
   return tp::test::summary("tp_settings_menu_tests");
 }

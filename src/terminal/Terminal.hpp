@@ -39,7 +39,7 @@ class Terminal {
   void hide_cursor();
   void show_cursor();
   void set_fg(int ansi_color);  // 0–7 or 8–15 bright if supported via 90–97
-  void set_bg(int ansi_color);  // 0–7
+  void set_bg(int ansi_color);  // 0–7 normal, 8–15 bright (100–107)
   void set_bold(bool on);
   void set_dim(bool on);
   void reset_attrs();

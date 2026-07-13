@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>terminalpolyominos.desktop</id>
+  <name>terminalpolyominos</name>
+  <summary>Colored polyomino stacking game for Unix terminals</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer_name>terminalpolyominos contributors</developer_name>
+  <description>
+    <p>
+      Lightweight Guideline-style falling-block game for the terminal. Hold, ghost piece,
+      lock delay, configurable keys and timing. Run it inside a terminal emulator.
+    </p>
+  </description>
+  <launchable type="desktop-id">terminalpolyominos.desktop</launchable>
+  <categories>
+    <category>Game</category>
+    <category>BlocksGame</category>
+  </categories>
+  <keywords>
+    <keyword>polyomino</keyword>
+    <keyword>terminal</keyword>
+    <keyword>tui</keyword>
+  </keywords>
+  <url type="homepage">https://github.com/Garrett-Webb/terminalpolyominos</url>
+  <provides>
+    <binary>terminalpolyominos</binary>
+  </provides>
+  <releases>
+    <release version="0.2.0" date="2026-07-12"/>
+  </releases>
+  <content_rating type="oars-1.1"/>
+</component>

@@ -1,0 +1,31 @@
+# Build
+/build/
+/build-*/
+/cmake-build-*/
+/out/
+/dist/
+compile_commands.json
+
+# Flatpak / AppImage tooling
+/.flatpak-builder/
+/repo/
+/*.flatpak
+/*.AppImage
+appimagetool-*.AppImage
+squashfs-root/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+install_manifest.txt
+CTestTestfile.cmake
+_deps/

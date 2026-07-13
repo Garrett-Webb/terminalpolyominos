@@ -38,7 +38,7 @@ jobs:
       - name: Checksums
         run: |
           cd dist
-          sha256sum terminalpolyominos-*.AppImage | tee SHA256SUMS-${{ matrix.arch }}.txt
+          sha256sum terminalpolyominos-*.AppImage | tee SHA256SUMS-linux-${{ matrix.arch }}.txt
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -46,17 +46,49 @@ jobs:
           name: appimage-${{ matrix.arch }}
           path: |
             dist/terminalpolyominos-*.AppImage
-            dist/SHA256SUMS-*.txt
+            dist/SHA256SUMS-linux-*.txt
+
+  macos:
+    name: macOS (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            arch: arm64
+          - os: macos-13
+            arch: x86_64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build macOS package
+        run: |
+          chmod +x packaging/macos/build.sh
+          ./packaging/macos/build.sh
+
+      - name: Checksums
+        run: |
+          cd dist
+          shasum -a 256 terminalpolyominos-*-macos-*.tar.gz | tee SHA256SUMS-macos-${{ matrix.arch }}.txt
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: |
+            dist/terminalpolyominos-*-macos-*.tar.gz
+            dist/SHA256SUMS-macos-*.txt
 
   publish:
     name: GitHub Release
-    needs: appimage
+    needs: [appimage, macos]
     runs-on: ubuntu-24.04
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download AppImages
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: release-assets
@@ -65,8 +97,9 @@ jobs:
       - name: Prepare assets
         run: |
           mkdir -p dist
-          find release-assets -type f \( -name '*.AppImage' -o -name 'SHA256SUMS-*.txt' \) \
-            -exec cp -v {} dist/ \;
+          find release-assets -type f \( \
+              -name '*.AppImage' -o -name '*.tar.gz' -o -name 'SHA256SUMS-*.txt' \
+            \) -exec cp -v {} dist/ \;
           cd dist
           cat SHA256SUMS-*.txt | sort > SHA256SUMS.txt
           ls -la
@@ -80,26 +113,35 @@ jobs:
           NOTES="$(cat <<EOF
           ## terminalpolyominos ${VERSION}
 
-          Colored polyomino stacking game for Unix terminals. **Run the AppImage from a terminal.**
+          Colored polyomino stacking for Unix terminals. **Run from a real terminal.**
 
           ### Download
-          | Asset | Arch |
+          | Asset | Platform |
           |---|---|
-          | \`terminalpolyominos-${VERSION}-x86_64.AppImage\` | Intel/AMD 64-bit |
-          | \`terminalpolyominos-${VERSION}-aarch64.AppImage\` | ARM64 (Asahi, Pi, etc.) |
+          | \`terminalpolyominos-${VERSION}-x86_64.AppImage\` | Linux x86_64 |
+          | \`terminalpolyominos-${VERSION}-aarch64.AppImage\` | Linux ARM64 |
+          | \`terminalpolyominos-${VERSION}-macos-arm64.tar.gz\` | macOS Apple Silicon |
+          | \`terminalpolyominos-${VERSION}-macos-x86_64.tar.gz\` | macOS Intel |
 
-          ### Run
+          ### Linux
           \`\`\`bash
           chmod +x terminalpolyominos-${VERSION}-*.AppImage
-          ./terminalpolyominos-${VERSION}-x86_64.AppImage   # or aarch64
+          ./terminalpolyominos-${VERSION}-\$(uname -m).AppImage
           \`\`\`
 
-          Verify: \`sha256sum -c SHA256SUMS.txt\`
+          ### macOS
+          \`\`\`bash
+          tar -xzf terminalpolyominos-${VERSION}-macos-\$(uname -m).tar.gz
+          chmod +x terminalpolyominos
+          ./terminalpolyominos
+          \`\`\`
+          If Gatekeeper blocks it: right-click → Open, or \`xattr -dr com.apple.quarantine terminalpolyominos\`.
+
+          Verify: \`sha256sum -c SHA256SUMS.txt\` (or \`shasum -a 256 -c\` on macOS)
 
           Config: \`~/.config/tpoly/.tpolyrc\`
           EOF
           )"
-          # If the release already exists (re-run), upload assets only.
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
           else

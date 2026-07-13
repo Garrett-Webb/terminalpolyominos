@@ -40,15 +40,29 @@ Pick one in Settings (`o`) or set `randomizer=` in the rc file:
 
 ## Play — download and run
 
-1. Grab the AppImage for your CPU from
-   **[Releases](https://github.com/Garrett-Webb/terminalpolyominos/releases/latest)**
-   (`x86_64` or `aarch64`).
-2. Make it executable and launch:
+1. Grab the build for your OS from
+   **[Releases](https://github.com/Garrett-Webb/terminalpolyominos/releases/latest)**:
+   - **Linux:** `.AppImage` (`x86_64` or `aarch64`)
+   - **macOS:** `.tar.gz` (`macos-arm64` or `macos-x86_64`)
+2. Run it **inside a terminal**:
+
+**Linux**
 
 ```bash
 chmod +x terminalpolyominos-*-$(uname -m).AppImage
 ./terminalpolyominos-*-$(uname -m).AppImage
 ```
+
+**macOS**
+
+```bash
+tar -xzf terminalpolyominos-*-macos-$(uname -m).tar.gz
+chmod +x terminalpolyominos
+./terminalpolyominos
+```
+
+If macOS Gatekeeper blocks the binary: right-click → Open, or
+`xattr -dr com.apple.quarantine terminalpolyominos`.
 
 ### Controls (defaults)
 

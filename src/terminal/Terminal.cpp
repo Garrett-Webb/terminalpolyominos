@@ -1,11 +1,12 @@
 #include "terminal/Terminal.hpp"
 
+#include <cerrno>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
-#include <fcntl.h>
+#include <poll.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
 
@@ -90,10 +91,12 @@ Terminal::Terminal() {
   }
   raw_ = true;
 
-  int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-  if (flags >= 0) {
-    (void)fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
-  }
+  // Deliberately do not set O_NONBLOCK on stdin. Raw mode with VMIN=0/VTIME=0
+  // already makes read() return immediately when no input is pending, so the
+  // flag is unnecessary for non-blocking key polling. Setting O_NONBLOCK on
+  // stdin also marks the shared TTY open-file description non-blocking, which
+  // makes stdout return short writes / EAGAIN once the ~1KB macOS tty output
+  // buffer fills and corrupted frames if those writes are not retried.
 
   color_ = !env_truthy_no_color();
   const char* term = std::getenv("TERM");
@@ -133,10 +136,37 @@ TermSize Terminal::size() const {
 }
 
 void Terminal::write(std::string_view s) {
-  if (s.empty()) {
-    return;
+  // Write every byte. Short writes and EINTR/EAGAIN must be retried, otherwise
+  // the tail of the frame is silently dropped and the display corrupts —
+  // especially with macOS's small (~1KB) tty output buffer vs a full frame.
+  const char* data = s.data();
+  std::size_t remaining = s.size();
+
+  while (remaining > 0) {
+    const ssize_t n = ::write(STDOUT_FILENO, data, remaining);
+
+    if (n > 0) {
+      data += n;
+      remaining -= static_cast<std::size_t>(n);
+      continue;
+    }
+
+    if (n < 0 && errno == EINTR) {
+      continue;
+    }
+
+    if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+      // stdout is non-blocking; wait for room rather than dropping bytes
+      pollfd pfd{};
+      pfd.fd = STDOUT_FILENO;
+      pfd.events = POLLOUT;
+      (void)::poll(&pfd, 1, -1);
+      continue;
+    }
+
+    // n==0 or unrecoverable error: stop to avoid spinning forever
+    break;
   }
-  (void)!::write(STDOUT_FILENO, s.data(), s.size());
 }
 
 void Terminal::flush() {

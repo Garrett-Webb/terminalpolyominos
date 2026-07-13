@@ -55,6 +55,25 @@ install -m644 "$ROOT/packaging/appimage/terminalpolyominos.desktop" "$APPDIR/ter
 install -m644 "$ROOT/packaging/appimage/terminalpolyominos.desktop" \
   "$APPDIR/usr/share/applications/terminalpolyominos.desktop"
 
+# appimagetool requires an Icon= file; generate a minimal placeholder (not shipped in git).
+python3 - "$APPDIR/terminalpolyominos.png" <<'PY'
+import struct, zlib, sys
+path = sys.argv[1]
+# 256x256 solid dark PNG (minimal valid image for AppDir tooling)
+w = h = 256
+raw = b"".join(b"\x00" + bytes([11, 18, 32]) * w for _ in range(h))
+compressed = zlib.compress(raw, 9)
+
+def chunk(tag: bytes, data: bytes) -> bytes:
+    return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+
+png = b"\x89PNG\r\n\x1a\n"
+png += chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+png += chunk(b"IDAT", compressed)
+png += chunk(b"IEND", b"")
+open(path, "wb").write(png)
+PY
+
 # Optional AppStream (harmless locally; useful if you later add Flatpak).
 if [[ -f "$ROOT/packaging/appimage/terminalpolyominos.metainfo.xml" ]]; then
   install -m644 "$ROOT/packaging/appimage/terminalpolyominos.metainfo.xml" \
@@ -78,13 +97,14 @@ fi
 
 echo "==> Running appimagetool"
 # Extracted appimagetool avoids FUSE requirement on some hosts.
+# --no-appstream: AppStream checks fail on private repos / non-rdns ids; metadata still shipped in AppDir.
 if "$TOOL" --appimage-extract-and-run --version >/dev/null 2>&1; then
   RUN=("$TOOL" --appimage-extract-and-run)
 else
   RUN=("$TOOL")
 fi
 
-ARCH="$APPIMAGE_ARCH" "${RUN[@]}" "$APPDIR" "$OUT_DIR/$NAME"
+ARCH="$APPIMAGE_ARCH" "${RUN[@]}" --no-appstream "$APPDIR" "$OUT_DIR/$NAME"
 
 echo "==> Built $OUT_DIR/$NAME"
 ls -lh "$OUT_DIR/$NAME"

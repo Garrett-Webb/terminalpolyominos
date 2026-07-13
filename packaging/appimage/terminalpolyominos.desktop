@@ -4,6 +4,7 @@ Name=terminalpolyominos
 GenericName=Terminal Polyominos
 Comment=Colored polyomino stacking game for Unix terminals
 Exec=terminalpolyominos
+Icon=terminalpolyominos
 Terminal=true
 Categories=Game;BlocksGame;
 Keywords=polyomino;tui;terminal;game;

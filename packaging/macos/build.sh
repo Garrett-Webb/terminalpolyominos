@@ -42,7 +42,9 @@ elif [[ "$MAC_ARCH" != "$HOST_ARCH" ]]; then
 fi
 
 echo "==> Configuring Release build in $BUILD_DIR (macos-${MAC_ARCH})"
-cmake -S "$ROOT" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release "${CMAKE_EXTRA[@]}"
+# macOS ships Bash 3.2; with `set -u`, empty "${arr[@]}" is an unbound variable.
+cmake -S "$ROOT" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release \
+  ${CMAKE_EXTRA[@]+"${CMAKE_EXTRA[@]}"}
 cmake --build "$BUILD_DIR" --target terminalpolyominos -j"$(sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 
 BIN="$BUILD_DIR/terminalpolyominos"

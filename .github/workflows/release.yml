@@ -56,6 +56,7 @@ jobs:
       matrix:
         include:
           - arch: arm64
+            cmake_osx_arch: arm64
           - arch: x86_64
             cmake_osx_arch: x86_64
     steps:

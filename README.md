@@ -25,7 +25,7 @@ the CPU.
 
 ### Rotation & scoring
 
-Classic **I O T S Z J L** use Tetris Guideline **SRS** wall-kick tables (separate **JLSTZ** and **I** tests; **O** does not kick). Generated **Custom** pieces (funk / freak) keep a simple horizontal kick list.
+Classic **I O T S Z J L** use **SRS** wall-kick tables (separate **JLSTZ** and **I** tests; **O** does not kick). Generated **Custom** pieces (funk / freak) keep a simple horizontal kick list.
 
 **T-spins** (T piece only): if the last successful action before lock was a rotate, and at least three of the four diagonal corners around the T’s center are filled (walls count):
 
@@ -38,12 +38,12 @@ A move, soft/sonic/hard drop after the rotate cancels the spin (even with 0 cell
 
 | Clear | Base × level | Notes |
 |---|---|---|
-| Single / Double / Triple / Tetris | 100 / 300 / 500 / 800 | Ordinary |
+| Single / Double / Triple / Quad | 100 / 300 / 500 / 800 | Ordinary |
 | Mini T-spin (0 / 1 / 2 lines) | 100 / 200 / 400 | Difficult if lines > 0 |
 | T-spin (0 / 1 / 2 / 3 lines) | 400 / 800 / 1200 / 1600 | Difficult if lines > 0 |
 | Soft / sonic / hard drop | +1 / +2 per cell | Not multiplied by B2B |
 
-**Difficult** clears (Tetris, or any T-spin that clears lines) arm **B2B**: the next difficult clear scores **×1.5**. Ordinary singles/doubles/triples break the chain; 0-line locks do not. **Combo** awards `50 × combo × level` on consecutive line-clearing locks (first clear in a streak has no combo bonus).
+**Difficult** clears (**Quad**, or any T-spin that clears lines) arm **B2B**: the next difficult clear scores **×1.5**. Ordinary singles/doubles/triples break the chain; 0-line locks do not. **Combo** awards `50 × combo × level` on consecutive line-clearing locks (first clear in a streak has no combo bonus).
 
 HUD shows **Combo** and a **B2B** tag when the chain is armed.
 

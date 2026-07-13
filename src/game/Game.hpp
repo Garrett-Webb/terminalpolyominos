@@ -24,7 +24,7 @@ struct GameState {
   // Consecutive clears: 0 = none yet / broken. After first clear becomes 1; bonus uses
   // pre-increment value so 2nd clear awards 50×1×level.
   int combo = 0;
-  // True after a difficult clear (Tetris or T-spin with lines); next difficult gets ×1.5.
+  // True after a difficult clear (Quad or T-spin with lines); next difficult gets ×1.5.
   bool b2b_ready = false;
   Phase phase = Phase::Ready;
   bool hold_used = false;

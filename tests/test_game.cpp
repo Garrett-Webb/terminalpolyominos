@@ -639,7 +639,7 @@ void lock_grounded_now(tp::Game& game) {
   game.apply(tp::Action::HardDrop);
 }
 
-void lock_filled_tetris(tp::Game& game) {
+void lock_filled_quad(tp::Game& game) {
   for (int y = tp::kBoardHeight - 4; y < tp::kBoardHeight; ++y) {
     game.fill_row_for_test(y);
   }
@@ -653,7 +653,7 @@ void lock_filled_tetris(tp::Game& game) {
   lock_grounded_now(game);
 }
 
-void test_b2b_tetris() {
+void test_b2b_quad() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
   cfg.hard_drop_flash_ms = 0;
@@ -661,14 +661,14 @@ void test_b2b_tetris() {
   tp::Game game(cfg);
   game.reset(1);
 
-  lock_filled_tetris(game);
+  lock_filled_quad(game);
   TP_CHECK(game.state().lines == 4);
   TP_CHECK(game.state().score == 800);
   TP_CHECK(game.state().b2b_ready);
   TP_CHECK(game.state().combo == 1);
 
-  lock_filled_tetris(game);
-  // B2B Tetris 1200 + combo 50×1×level
+  lock_filled_quad(game);
+  // B2B Quad 1200 + combo 50×1×level
   TP_CHECK(game.state().lines == 8);
   TP_CHECK(game.state().score == 800 + 1200 + 50);
   TP_CHECK(game.state().b2b_ready);
@@ -683,7 +683,7 @@ void test_b2b_broken_by_single() {
   tp::Game game(cfg);
   game.reset(1);
 
-  lock_filled_tetris(game);
+  lock_filled_quad(game);
   TP_CHECK(game.state().b2b_ready);
 
   game.fill_row_for_test(tp::kBoardHeight - 1);
@@ -710,7 +710,7 @@ void test_b2b_survives_nolines_lock() {
   tp::Game game(cfg);
   game.reset(1);
 
-  lock_filled_tetris(game);
+  lock_filled_quad(game);
   TP_CHECK(game.state().b2b_ready);
   TP_CHECK(game.state().combo == 1);
 
@@ -725,7 +725,7 @@ void test_b2b_survives_nolines_lock() {
   TP_CHECK(game.state().b2b_ready);
   TP_CHECK(game.state().combo == 0);
 
-  lock_filled_tetris(game);
+  lock_filled_quad(game);
   // Still B2B (1200) but combo reset so no combo points.
   TP_CHECK(game.state().score == 800 + 1200);
   TP_CHECK(game.state().combo == 1);
@@ -860,7 +860,7 @@ int main() {
   test_tspin_full_single();
   test_tspin_mini_no_lines();
   test_tspin_cancelled_by_move();
-  test_b2b_tetris();
+  test_b2b_quad();
   test_b2b_broken_by_single();
   test_b2b_survives_nolines_lock();
   test_combo_three_singles();

@@ -15,12 +15,37 @@ the CPU.
 **Gameplay highlights**
 
 - Hold, ghost piece, lock delay, soft / hard / sonic drop
-- Guideline **SRS** wall kicks; **T-spin** Mini / Full; **B2B** ×1.5 and **combo** (`50×n×level`)
+- Guideline **SRS** rotation (classic pieces) with **T-spin** Mini / Full scoring
+- **Back-to-back** (×1.5 on difficult clears) and **combo** (`50 × n × level`)
 - Remappable keys and timing via an in-game settings menu (`o`)
 - Six piece randomizers — from classic 7-bag to generated “freak” polyominoes
 - NEXT queue length 1–5; line-clear and hard-drop flash polish
 - ANSI color when available (`NO_COLOR` / `TERM=dumb` respected)
 - Config under `~/.config/tpoly/.tpolyrc` (XDG)
+
+### Rotation & scoring
+
+Classic **I O T S Z J L** use Tetris Guideline **SRS** wall-kick tables (separate **JLSTZ** and **I** tests; **O** does not kick). Generated **Custom** pieces (funk / freak) keep a simple horizontal kick list.
+
+**T-spins** (T piece only): if the last successful action before lock was a rotate, and at least three of the four diagonal corners around the T’s center are filled (walls count):
+
+| | Condition |
+|---|---|
+| **Full** | Both front corners filled, **or** the successful kick was a 1×2 offset |
+| **Mini** | Otherwise (typically one front + two back) |
+
+A move, soft/sonic/hard drop after the rotate cancels the spin (even with 0 cells of travel).
+
+| Clear | Base × level | Notes |
+|---|---|---|
+| Single / Double / Triple / Tetris | 100 / 300 / 500 / 800 | Ordinary |
+| Mini T-spin (0 / 1 / 2 lines) | 100 / 200 / 400 | Difficult if lines > 0 |
+| T-spin (0 / 1 / 2 / 3 lines) | 400 / 800 / 1200 / 1600 | Difficult if lines > 0 |
+| Soft / sonic / hard drop | +1 / +2 per cell | Not multiplied by B2B |
+
+**Difficult** clears (Tetris, or any T-spin that clears lines) arm **B2B**: the next difficult clear scores **×1.5**. Ordinary singles/doubles/triples break the chain; 0-line locks do not. **Combo** awards `50 × combo × level` on consecutive line-clearing locks (first clear in a streak has no combo bonus).
+
+HUD shows **Combo** and a **B2B** tag when the chain is armed.
 
 ### Randomizers
 
@@ -119,7 +144,7 @@ cmake --install build --prefix ~/.local
 
 | Path | Role |
 |---|---|
-| `src/game/` | Pure engine (`tp_game`) — bag, shape gen, board |
+| `src/game/` | Pure engine (`tp_game`) — bag, SRS kicks, T-spin / B2B / combo, board |
 | `src/app/` | Main loop, screens, settings menu |
 | `src/terminal/` | Raw TTY, ANSI, key decode |
 | `src/input/` | Keybinds → actions |

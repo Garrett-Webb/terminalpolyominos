@@ -46,8 +46,6 @@ fi
 echo "==> Assembling AppDir"
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/share/applications" \
-  "$APPDIR/usr/share/icons/hicolor/256x256/apps" \
-  "$APPDIR/usr/share/icons/hicolor/128x128/apps" \
   "$APPDIR/usr/share/metainfo"
 
 install -m755 "$BIN" "$APPDIR/usr/bin/terminalpolyominos"
@@ -56,11 +54,6 @@ install -m755 "$ROOT/packaging/appimage/AppRun" "$APPDIR/AppRun"
 install -m644 "$ROOT/packaging/appimage/terminalpolyominos.desktop" "$APPDIR/terminalpolyominos.desktop"
 install -m644 "$ROOT/packaging/appimage/terminalpolyominos.desktop" \
   "$APPDIR/usr/share/applications/terminalpolyominos.desktop"
-install -m644 "$ROOT/packaging/icons/terminalpolyominos.png" "$APPDIR/terminalpolyominos.png"
-install -m644 "$ROOT/packaging/icons/terminalpolyominos.png" \
-  "$APPDIR/usr/share/icons/hicolor/256x256/apps/terminalpolyominos.png"
-install -m644 "$ROOT/packaging/icons/terminalpolyominos-128.png" \
-  "$APPDIR/usr/share/icons/hicolor/128x128/apps/terminalpolyominos.png"
 
 # Optional AppStream (harmless locally; useful if you later add Flatpak).
 if [[ -f "$ROOT/packaging/appimage/terminalpolyominos.metainfo.xml" ]]; then

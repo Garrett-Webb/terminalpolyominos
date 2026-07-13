@@ -1,13 +1,14 @@
 #include "game/Game.hpp"
 
 #include "game/Piece.hpp"
+#include "game/SrsKicks.hpp"
 
 #include <algorithm>
 
 namespace tp {
 namespace {
 
-int line_clear_points(int cleared, int level) {
+int ordinary_clear_points(int cleared, int level) {
   int base = 0;
   switch (cleared) {
     case 1:
@@ -27,6 +28,46 @@ int line_clear_points(int cleared, int level) {
       break;
     default:
       return 0;
+  }
+  return base * level;
+}
+
+int lock_points(int cleared, SpinType spin, int level) {
+  if (spin == SpinType::None) {
+    return ordinary_clear_points(cleared, level);
+  }
+  int base = 0;
+  if (spin == SpinType::Mini) {
+    switch (cleared) {
+      case 0:
+        base = 100;
+        break;
+      case 1:
+        base = 200;
+        break;
+      case 2:
+        base = 400;
+        break;
+      default:
+        return ordinary_clear_points(cleared, level);
+    }
+  } else {
+    switch (cleared) {
+      case 0:
+        base = 400;
+        break;
+      case 1:
+        base = 800;
+        break;
+      case 2:
+        base = 1200;
+        break;
+      case 3:
+        base = 1600;
+        break;
+      default:
+        return ordinary_clear_points(cleared, level);
+    }
   }
   return base * level;
 }
@@ -81,6 +122,8 @@ void Game::reset(std::uint64_t seed) {
   lock_accum_ms_ = 0;
   locking_ = false;
   pending_clear_count_ = 0;
+  pending_spin_ = SpinType::None;
+  clear_rotate_flag();
   refresh_next_preview();
   spawn_next();
   mark_dirty();
@@ -223,12 +266,17 @@ void Game::set_active_for_test(ActivePiece piece) {
   refresh_ghost();
   gravity_accum_ms_ = 0;
   cancel_lock();
+  clear_rotate_flag();
 }
 
 void Game::fill_row_for_test(int y, PieceType type) {
   for (int x = 0; x < kBoardWidth; ++x) {
     state_.board.set(x, y, type);
   }
+}
+
+void Game::set_cell_for_test(int x, int y, PieceType type) {
+  state_.board.set(x, y, type);
 }
 
 bool Game::fits(const ActivePiece& piece) const {
@@ -300,6 +348,18 @@ void Game::refresh_next_preview() {
   }
 }
 
+void Game::clear_rotate_flag() {
+  last_rotate_ = false;
+  last_kick_dx_ = 0;
+  last_kick_dy_ = 0;
+}
+
+void Game::note_rotate(int kick_dx, int kick_dy) {
+  last_rotate_ = true;
+  last_kick_dx_ = kick_dx;
+  last_kick_dy_ = kick_dy;
+}
+
 bool Game::try_move(int dx, int dy) {
   ActivePiece next = state_.active;
   next.x += dx;
@@ -309,6 +369,7 @@ bool Game::try_move(int dx, int dy) {
   }
   state_.active = next;
   refresh_ghost();
+  clear_rotate_flag();
   if (dy != 0) {
     cancel_lock();
   } else if (locking_) {
@@ -320,11 +381,16 @@ bool Game::try_move(int dx, int dy) {
 bool Game::try_rotate(int dir) {
   const int from = state_.active.rotation;
   const int to = (from + dir + 4) % 4;
-  const int kicks[] = {0, -1, 1, -2, 2};
-  for (int kick : kicks) {
-    if (fits_at(state_.active.spec, state_.active.x + kick, state_.active.y, to)) {
+  Kick kicks[kMaxKickTests];
+  const int n = srs_kick_tests(state_.active.spec.kind, from, to, kicks);
+  for (int i = 0; i < n; ++i) {
+    const int nx = state_.active.x + kicks[i].dx;
+    const int ny = state_.active.y + kicks[i].dy;
+    if (fits_at(state_.active.spec, nx, ny, to)) {
       state_.active.rotation = to;
-      state_.active.x += kick;
+      state_.active.x = nx;
+      state_.active.y = ny;
+      note_rotate(kicks[i].dx, kicks[i].dy);
       refresh_ghost();
       if (locking_) {
         lock_accum_ms_ = 0;
@@ -354,6 +420,8 @@ void Game::sonic_drop() {
   if (dropped > 0) {
     state_.score += dropped * 2;
   }
+  // Drop is a translate; clears rotate even when distance is 0.
+  clear_rotate_flag();
   refresh_ghost();
   begin_lock_if_grounded();
   mark_dirty();
@@ -366,14 +434,24 @@ void Game::hard_drop() {
   if (dropped > 0) {
     state_.score += dropped * 2;
   }
+  clear_rotate_flag();
   refresh_ghost();
   lock_active(/*from_hard_drop=*/true);
+}
+
+SpinType Game::detect_tspin_on_lock() const {
+  if (!last_rotate_ || state_.active.kind() != PieceType::T) {
+    return SpinType::None;
+  }
+  return classify_tspin(state_.board, state_.active.x, state_.active.y, state_.active.rotation,
+                        last_kick_dx_, last_kick_dy_);
 }
 
 void Game::lock_active(bool from_hard_drop) {
   if (!state_.active.alive) {
     return;
   }
+  const SpinType spin = detect_tspin_on_lock();
   const PieceSpec locked = state_.active.spec;
   Offset cells[kMaxPieceCells];
   int n = 0;
@@ -394,6 +472,7 @@ void Game::lock_active(bool from_hard_drop) {
   state_.active.alive = false;
   state_.ghost = {};
   cancel_lock();
+  clear_rotate_flag();
 
   state_.clear_rows.fill(false);
   pending_clear_count_ = 0;
@@ -403,23 +482,29 @@ void Game::lock_active(bool from_hard_drop) {
       ++pending_clear_count_;
     }
   }
+  pending_spin_ = spin;
+
+  // Always run scoring path so 0-line locks reset combo (B2B chain stays).
+  const bool has_clear = pending_clear_count_ > 0;
+  const bool has_spin = spin != SpinType::None;
 
   if (from_hard_drop && config_.hard_drop_flash_ms > 0) {
     state_.lock_flash = flashed;
     state_.lock_flash.alive = true;
     state_.lock_flash_ms = config_.hard_drop_flash_ms;
-    if (pending_clear_count_ > 0) {
-      add_line_score(pending_clear_count_);
-    }
+    add_lock_score(pending_clear_count_, pending_spin_);
+    pending_spin_ = SpinType::None;
     mark_dirty();
     return;
   }
 
-  if (pending_clear_count_ > 0) {
-    add_line_score(pending_clear_count_);
+  add_lock_score(pending_clear_count_, pending_spin_);
+  pending_spin_ = SpinType::None;
+  if (has_clear) {
     begin_line_clear_anim();
     return;
   }
+  (void)has_spin;
 
   state_.hold_used = false;
   spawn_next();
@@ -481,6 +566,7 @@ void Game::spawn_next() {
   state_.active = spawned;
   gravity_accum_ms_ = 0;
   cancel_lock();
+  clear_rotate_flag();
   refresh_ghost();
   mark_dirty();
 }
@@ -497,6 +583,7 @@ void Game::hold() {
     state_.hold_used = true;
     state_.active.alive = false;
     cancel_lock();
+    clear_rotate_flag();
     spawn_next();
     state_.hold_used = true;
     mark_dirty();
@@ -516,14 +603,34 @@ void Game::hold() {
   state_.hold_used = true;
   gravity_accum_ms_ = 0;
   cancel_lock();
+  clear_rotate_flag();
   refresh_ghost();
   mark_dirty();
 }
 
-void Game::add_line_score(int cleared) {
-  state_.score += line_clear_points(cleared, state_.level);
-  state_.lines += cleared;
-  state_.level = 1 + state_.lines / config_.lines_per_level;
+void Game::add_lock_score(int cleared, SpinType spin) {
+  const bool difficult = cleared > 0 && (spin != SpinType::None || cleared >= 4);
+
+  int points = lock_points(cleared, spin, state_.level);
+  if (difficult && state_.b2b_ready) {
+    // Guideline: action score × 1.5 (drop points excluded; those are added elsewhere).
+    points += points / 2;
+  }
+
+  if (cleared > 0) {
+    if (state_.combo > 0) {
+      points += 50 * state_.combo * state_.level;
+    }
+    ++state_.combo;
+    state_.b2b_ready = difficult;
+    state_.lines += cleared;
+    state_.level = 1 + state_.lines / config_.lines_per_level;
+  } else {
+    // No lines: break combo; B2B chain preserved (incl. 0-line T-spins).
+    state_.combo = 0;
+  }
+
+  state_.score += points;
 }
 
 void Game::begin_lock_if_grounded() {

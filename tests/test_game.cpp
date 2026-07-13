@@ -3,6 +3,7 @@
 #include "game/Game.hpp"
 #include "game/Piece.hpp"
 #include "game/ShapeGen.hpp"
+#include "game/SrsKicks.hpp"
 #include "test_assert.hpp"
 
 #include <algorithm>
@@ -471,6 +472,296 @@ void test_rotate_basic_kick() {
   TP_CHECK(game.state().active.rotation == 1);
 }
 
+void test_srs_kick_table_code_coords() {
+  tp::Kick out[tp::kMaxKickTests];
+  const int n = tp::srs_kick_tests(tp::PieceType::T, 0, 1, out);
+  TP_CHECK(n == 5);
+  TP_CHECK((out[0] == tp::Kick{0, 0}));
+  TP_CHECK((out[1] == tp::Kick{-1, 0}));
+  TP_CHECK((out[2] == tp::Kick{-1, -1}));
+  TP_CHECK((out[3] == tp::Kick{0, 2}));
+  TP_CHECK((out[4] == tp::Kick{-1, 2}));
+
+  const int ni = tp::srs_kick_tests(tp::PieceType::I, 0, 1, out);
+  TP_CHECK(ni == 5);
+  TP_CHECK((out[0] == tp::Kick{0, 0}));
+  TP_CHECK((out[1] == tp::Kick{-2, 0}));
+  TP_CHECK((out[2] == tp::Kick{1, 0}));
+  TP_CHECK((out[3] == tp::Kick{-2, 1}));
+  TP_CHECK((out[4] == tp::Kick{1, -2}));
+
+  TP_CHECK(tp::srs_kick_tests(tp::PieceType::O, 0, 1, out) == 1);
+  TP_CHECK((out[0] == tp::Kick{0, 0}));
+}
+
+void test_srs_i_wall_kick() {
+  tp::GameConfig cfg;
+  cfg.clear_flash_ms = 0;
+  cfg.hard_drop_flash_ms = 0;
+  tp::Game game(cfg);
+  game.reset(1);
+
+  // Block the basic 0→R placement so I must use the (-2,0) kick.
+  for (int y = 0; y < 4; ++y) {
+    game.set_cell_for_test(7, y);
+  }
+
+  tp::ActivePiece p;
+  p.spec = tp::PieceSpec::classic(tp::PieceType::I);
+  p.x = 5;
+  p.y = 0;
+  p.rotation = 0;
+  p.alive = true;
+  game.set_active_for_test(p);
+  game.apply(tp::Action::RotateCW);
+  TP_CHECK(game.state().active.rotation == 1);
+  TP_CHECK(game.state().active.x == 3);
+  TP_CHECK(game.state().active.y == 0);
+}
+
+void test_srs_jlstz_wall_kick() {
+  tp::GameConfig cfg;
+  cfg.clear_flash_ms = 0;
+  cfg.hard_drop_flash_ms = 0;
+  tp::Game game(cfg);
+  game.reset(1);
+
+  // T at left; block basic 0→R so kick (-1,0) is required.
+  const int y = 8;
+  game.set_cell_for_test(2, y + 1);
+
+  tp::ActivePiece p;
+  p.spec = tp::PieceSpec::classic(tp::PieceType::T);
+  p.x = 0;
+  p.y = y;
+  p.rotation = 0;
+  p.alive = true;
+  game.set_active_for_test(p);
+  game.apply(tp::Action::RotateCW);
+  TP_CHECK(game.state().active.rotation == 1);
+  TP_CHECK(game.state().active.x == -1);
+  TP_CHECK(game.state().active.y == y);
+}
+
+void test_tspin_full_single() {
+  tp::GameConfig cfg;
+  cfg.clear_flash_ms = 0;
+  cfg.hard_drop_flash_ms = 0;
+  cfg.lock_delay_ms = 50;
+  tp::Game game(cfg);
+  game.reset(1);
+
+  const int by = tp::kBoardHeight - 1;  // 21
+  for (int x = 0; x < tp::kBoardWidth; ++x) {
+    if (x != 5) {
+      game.set_cell_for_test(x, by);
+    }
+  }
+  // Back corners + ensure cavity around T flat on row 20.
+  game.set_cell_for_test(4, by - 2);
+  game.set_cell_for_test(6, by - 2);
+
+  tp::ActivePiece p;
+  p.spec = tp::PieceSpec::classic(tp::PieceType::T);
+  p.x = 4;
+  p.y = by - 2;  // 19
+  p.rotation = 1;  // R; CW → 2 (stem down)
+  p.alive = true;
+  game.set_active_for_test(p);
+  game.apply(tp::Action::RotateCW);
+  TP_CHECK(game.state().active.rotation == 2);
+  TP_CHECK(game.state().active.x == 4);
+  TP_CHECK(game.state().active.y == by - 2);
+
+  const int before = game.state().score;
+  // Grounded after rotate → lock delay.
+  game.tick(50);
+  TP_CHECK(game.state().lines == 1);
+  TP_CHECK(game.state().score == before + 800);
+}
+
+void test_tspin_mini_no_lines() {
+  tp::Board board;
+  // Center (5,10). Front for rot0 (stem up) = top pair. Fill one front + both backs.
+  board.set(4, 9, tp::PieceType::I);   // front-left
+  board.set(4, 11, tp::PieceType::I);  // back-left
+  board.set(6, 11, tp::PieceType::I);  // back-right
+  // Not front-right (6,9) → Mini candidate.
+  TP_CHECK(tp::classify_tspin(board, /*px=*/4, /*py=*/9, /*rot=*/0, 0, 0) == tp::SpinType::Mini);
+
+  // Both fronts → Full.
+  board.set(6, 9, tp::PieceType::I);
+  TP_CHECK(tp::classify_tspin(board, 4, 9, 0, 0, 0) == tp::SpinType::Full);
+
+  // 1×2 kick forces Full even when Mini shape.
+  board.clear_cell(6, 9);
+  TP_CHECK(tp::classify_tspin(board, 4, 9, 0, -1, 2) == tp::SpinType::Full);
+}
+
+void test_tspin_cancelled_by_move() {
+  tp::GameConfig cfg;
+  cfg.clear_flash_ms = 0;
+  cfg.hard_drop_flash_ms = 0;
+  cfg.lock_delay_ms = 50;
+  tp::Game game(cfg);
+  game.reset(1);
+
+  const int by = tp::kBoardHeight - 1;
+  for (int x = 0; x < tp::kBoardWidth; ++x) {
+    if (x != 5) {
+      game.set_cell_for_test(x, by);
+    }
+  }
+  game.set_cell_for_test(4, by - 2);
+  game.set_cell_for_test(6, by - 2);
+
+  tp::ActivePiece p;
+  p.spec = tp::PieceSpec::classic(tp::PieceType::T);
+  p.x = 4;
+  p.y = by - 2;
+  p.rotation = 1;
+  p.alive = true;
+  game.set_active_for_test(p);
+  game.apply(tp::Action::RotateCW);
+  TP_CHECK(game.state().active.rotation == 2);
+
+  // Sonic drop is a translate even when distance is 0 — clears last-rotate.
+  game.apply(tp::Action::SonicDrop);
+
+  const int before = game.state().score;
+  game.tick(50);
+  TP_CHECK(game.state().lines == 1);
+  TP_CHECK(game.state().score == before + 100);
+}
+
+void lock_grounded_now(tp::Game& game) {
+  // 0-travel hard drop: locks immediately without soft/hard drop points.
+  game.apply(tp::Action::HardDrop);
+}
+
+void lock_filled_tetris(tp::Game& game) {
+  for (int y = tp::kBoardHeight - 4; y < tp::kBoardHeight; ++y) {
+    game.fill_row_for_test(y);
+  }
+  tp::ActivePiece p;
+  p.spec = tp::PieceSpec::classic(tp::PieceType::O);
+  p.x = 4;
+  p.y = tp::kBoardHeight - 6;
+  p.rotation = 0;
+  p.alive = true;
+  game.set_active_for_test(p);
+  lock_grounded_now(game);
+}
+
+void test_b2b_tetris() {
+  tp::GameConfig cfg;
+  cfg.clear_flash_ms = 0;
+  cfg.hard_drop_flash_ms = 0;
+  cfg.lock_delay_ms = 50;
+  tp::Game game(cfg);
+  game.reset(1);
+
+  lock_filled_tetris(game);
+  TP_CHECK(game.state().lines == 4);
+  TP_CHECK(game.state().score == 800);
+  TP_CHECK(game.state().b2b_ready);
+  TP_CHECK(game.state().combo == 1);
+
+  lock_filled_tetris(game);
+  // B2B Tetris 1200 + combo 50×1×level
+  TP_CHECK(game.state().lines == 8);
+  TP_CHECK(game.state().score == 800 + 1200 + 50);
+  TP_CHECK(game.state().b2b_ready);
+  TP_CHECK(game.state().combo == 2);
+}
+
+void test_b2b_broken_by_single() {
+  tp::GameConfig cfg;
+  cfg.clear_flash_ms = 0;
+  cfg.hard_drop_flash_ms = 0;
+  cfg.lock_delay_ms = 50;
+  tp::Game game(cfg);
+  game.reset(1);
+
+  lock_filled_tetris(game);
+  TP_CHECK(game.state().b2b_ready);
+
+  game.fill_row_for_test(tp::kBoardHeight - 1);
+  tp::ActivePiece p;
+  p.spec = tp::PieceSpec::classic(tp::PieceType::O);
+  p.x = 4;
+  p.y = tp::kBoardHeight - 3;
+  p.rotation = 0;
+  p.alive = true;
+  game.set_active_for_test(p);
+  const int before = game.state().score;
+  lock_grounded_now(game);
+  TP_CHECK(game.state().lines == 5);
+  // Ordinary single breaks B2B; combo was 1 so +50.
+  TP_CHECK(game.state().score == before + 100 + 50);
+  TP_CHECK(!game.state().b2b_ready);
+}
+
+void test_b2b_survives_nolines_lock() {
+  tp::GameConfig cfg;
+  cfg.clear_flash_ms = 0;
+  cfg.hard_drop_flash_ms = 0;
+  cfg.lock_delay_ms = 50;
+  tp::Game game(cfg);
+  game.reset(1);
+
+  lock_filled_tetris(game);
+  TP_CHECK(game.state().b2b_ready);
+  TP_CHECK(game.state().combo == 1);
+
+  tp::ActivePiece p;
+  p.spec = tp::PieceSpec::classic(tp::PieceType::O);
+  p.x = 4;
+  p.y = tp::kBoardHeight - 3;
+  p.rotation = 0;
+  p.alive = true;
+  game.set_active_for_test(p);
+  lock_grounded_now(game);
+  TP_CHECK(game.state().b2b_ready);
+  TP_CHECK(game.state().combo == 0);
+
+  lock_filled_tetris(game);
+  // Still B2B (1200) but combo reset so no combo points.
+  TP_CHECK(game.state().score == 800 + 1200);
+  TP_CHECK(game.state().combo == 1);
+}
+
+void test_combo_three_singles() {
+  tp::GameConfig cfg;
+  cfg.clear_flash_ms = 0;
+  cfg.hard_drop_flash_ms = 0;
+  cfg.lock_delay_ms = 50;
+  tp::Game game(cfg);
+  game.reset(1);
+
+  auto single = [&] {
+    game.fill_row_for_test(tp::kBoardHeight - 1);
+    tp::ActivePiece p;
+    p.spec = tp::PieceSpec::classic(tp::PieceType::O);
+    p.x = 4;
+    p.y = tp::kBoardHeight - 3;
+    p.rotation = 0;
+    p.alive = true;
+    game.set_active_for_test(p);
+    lock_grounded_now(game);
+  };
+
+  single();
+  TP_CHECK(game.state().score == 100);
+  TP_CHECK(game.state().combo == 1);
+  single();
+  TP_CHECK(game.state().score == 100 + 100 + 50);
+  TP_CHECK(game.state().combo == 2);
+  single();
+  TP_CHECK(game.state().score == 250 + 100 + 100);  // +100 clear +50*2 combo
+  TP_CHECK(game.state().combo == 3);
+}
+
 void test_clear_flash_then_collapse() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 100;
@@ -563,6 +854,16 @@ int main() {
   test_lock_delay();
   test_pause();
   test_rotate_basic_kick();
+  test_srs_kick_table_code_coords();
+  test_srs_i_wall_kick();
+  test_srs_jlstz_wall_kick();
+  test_tspin_full_single();
+  test_tspin_mini_no_lines();
+  test_tspin_cancelled_by_move();
+  test_b2b_tetris();
+  test_b2b_broken_by_single();
+  test_b2b_survives_nolines_lock();
+  test_combo_three_singles();
   test_clear_flash_then_collapse();
   test_pieces_placed_counted_on_lock();
   test_hard_drop_flash();

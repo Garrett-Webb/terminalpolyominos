@@ -503,7 +503,7 @@ void Renderer::draw_game(const GameState& state) {
     }
   }
 
-  const int stats_row = field_bottom - 3;
+  const int stats_row = field_bottom - 4;
   auto draw_stat = [&](int row, const char* label, int value) {
     canvas_.cup(row, hold_content_col);
     canvas_.text(label);
@@ -516,6 +516,29 @@ void Renderer::draw_game(const GameState& state) {
   draw_stat(stats_row, "Score ", state.score);
   draw_stat(stats_row + 1, "Level ", state.level);
   draw_stat(stats_row + 2, "Lines ", state.lines);
+  canvas_.cup(stats_row + 3, hold_content_col);
+  if (state.combo > 0) {
+    canvas_.text("Combo ");
+    canvas_.number(state.combo);
+  } else {
+    canvas_.text("Combo -");
+  }
+  for (int i = 0; i < 4; ++i) {
+    canvas_.text(' ');
+  }
+  if (state.b2b_ready) {
+    if (term_.color_enabled()) {
+      canvas_.bold();
+      canvas_.fg(3);
+    }
+    canvas_.text("B2B");
+    canvas_.reset();
+  } else {
+    canvas_.text("   ");
+  }
+  for (int i = 0; i < 4; ++i) {
+    canvas_.text(' ');
+  }
 
   hline(canvas_, lay.field_row, lay.field_col, inner_w, '+', '-');
 
@@ -658,6 +681,8 @@ void Renderer::draw_game(const GameState& state) {
     center_text(r++, "Score  " + std::to_string(state.score));
     center_text(r++, "Level  " + std::to_string(state.level));
     center_text(r++, "Lines  " + std::to_string(state.lines));
+    center_text(r++, "Combo  " + std::to_string(state.combo) +
+                         (state.b2b_ready ? "   B2B ready" : ""));
     clear_row(r++);
 
     auto draw_counts = [&](int row, std::initializer_list<PieceType> types) {

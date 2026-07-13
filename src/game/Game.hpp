@@ -2,6 +2,7 @@
 
 #include "game/Bag.hpp"
 #include "game/Board.hpp"
+#include "game/SrsKicks.hpp"
 #include "game/Types.hpp"
 
 #include <array>
@@ -20,6 +21,11 @@ struct GameState {
   int score = 0;
   int level = 1;
   int lines = 0;
+  // Consecutive clears: 0 = none yet / broken. After first clear becomes 1; bonus uses
+  // pre-increment value so 2nd clear awards 50×1×level.
+  int combo = 0;
+  // True after a difficult clear (Tetris or T-spin with lines); next difficult gets ×1.5.
+  bool b2b_ready = false;
   Phase phase = Phase::Ready;
   bool hold_used = false;
   // While > 0, matching rows in clear_rows flash before collapsing.
@@ -50,6 +56,7 @@ class Game {
   // Test helpers / deterministic injection.
   void set_active_for_test(ActivePiece piece);
   void fill_row_for_test(int y, PieceType type = PieceType::I);
+  void set_cell_for_test(int x, int y, PieceType type = PieceType::I);
 
  private:
   void mark_dirty() { dirty_ = true; }
@@ -73,9 +80,12 @@ class Game {
   void finish_line_clear();
   void spawn_next();
   void hold();
-  void add_line_score(int cleared);
+  void add_lock_score(int cleared, SpinType spin);
+  [[nodiscard]] SpinType detect_tspin_on_lock() const;
   void begin_lock_if_grounded();
   void cancel_lock();
+  void clear_rotate_flag();
+  void note_rotate(int kick_dx, int kick_dy);
   [[nodiscard]] bool is_flashing() const {
     return state_.clear_flash_ms > 0 || state_.lock_flash_ms > 0;
   }
@@ -91,6 +101,10 @@ class Game {
   bool locking_ = false;
   bool dirty_ = true;
   int pending_clear_count_ = 0;
+  bool last_rotate_ = false;
+  int last_kick_dx_ = 0;
+  int last_kick_dy_ = 0;
+  SpinType pending_spin_ = SpinType::None;
 };
 
 }  // namespace tp

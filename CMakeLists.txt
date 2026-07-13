@@ -14,6 +14,7 @@ add_library(tp_game STATIC
   src/game/Board.cpp
   src/game/Piece.cpp
   src/game/ShapeGen.cpp
+  src/game/SrsKicks.cpp
   src/game/Game.cpp)
 target_include_directories(tp_game PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_compile_options(tp_game PRIVATE -Wall -Wextra -Wpedantic -Werror)

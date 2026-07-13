@@ -15,6 +15,7 @@ the CPU.
 **Gameplay highlights**
 
 - Hold, ghost piece, lock delay, soft / hard / sonic drop
+- Guideline **SRS** wall kicks; **T-spin** Mini / Full; **B2B** ×1.5 and **combo** (`50×n×level`)
 - Remappable keys and timing via an in-game settings menu (`o`)
 - Six piece randomizers — from classic 7-bag to generated “freak” polyominoes
 - NEXT queue length 1–5; line-clear and hard-drop flash polish

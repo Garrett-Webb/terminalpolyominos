@@ -6,6 +6,8 @@ standard library and POSIX termios. The AppImage is about **1 MB**.
 
 Binary: **`terminalpolyominos`** · short name: **`tpoly`**
 
+![Gameplay: hold, playfield with ghost piece, next queue, and score](docs/gameplay.png)
+
 Run it **inside a terminal** (real TTY required). It scales the playfield to your
 window, keeps redraws low-flicker, and aims for snappy input without busy-spinning
 the CPU.

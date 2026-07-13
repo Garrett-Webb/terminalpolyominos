@@ -14,8 +14,8 @@ struct GameState {
   Board board;
   ActivePiece active;
   ActivePiece ghost;
-  std::optional<PieceType> hold;
-  std::array<PieceType, kNextQueueMax> next{};
+  std::optional<PieceSpec> hold;
+  std::array<PieceSpec, kNextQueueMax> next{};
   int next_count = kNextQueueDefault;
   int score = 0;
   int level = 1;
@@ -28,7 +28,7 @@ struct GameState {
   // Hard-drop lock flash: white cells for the just-locked piece.
   int lock_flash_ms = 0;
   ActivePiece lock_flash{};
-  // Tetrominoes locked this game (indexed by PieceType).
+  // Pieces locked this game (indexed by PieceType, including Custom).
   std::array<int, static_cast<std::size_t>(PieceType::Count)> pieces_placed{};
 };
 
@@ -55,8 +55,8 @@ class Game {
   void mark_dirty() { dirty_ = true; }
 
   [[nodiscard]] bool fits(const ActivePiece& piece) const;
-  [[nodiscard]] bool fits_at(PieceType type, int x, int y, int rotation) const;
-  [[nodiscard]] ActivePiece spawn_piece(PieceType type) const;
+  [[nodiscard]] bool fits_at(const PieceSpec& spec, int x, int y, int rotation) const;
+  [[nodiscard]] ActivePiece spawn_piece(const PieceSpec& spec) const;
   [[nodiscard]] ActivePiece ghost_of(const ActivePiece& piece) const;
   [[nodiscard]] int gravity_ms_per_row() const;
 
@@ -83,7 +83,7 @@ class Game {
   GameConfig config_;
   GameState state_;
   Bag bag_;
-  PieceType hold_piece_ = PieceType::I;
+  PieceSpec hold_piece_{};
   bool has_hold_ = false;
 
   int gravity_accum_ms_ = 0;

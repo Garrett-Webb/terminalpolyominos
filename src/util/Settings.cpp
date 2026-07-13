@@ -105,6 +105,12 @@ void apply_kv(Settings& s, const std::string& key, const std::string& value) {
     } else if (lower == "random" || lower == "full" || lower == "fullrandom" ||
                lower == "full_random" || lower == "pure") {
       s.game.randomizer = Randomizer::FullRandom;
+    } else if (lower == "torture") {
+      s.game.randomizer = Randomizer::Torture;
+    } else if (lower == "funk") {
+      s.game.randomizer = Randomizer::Funk;
+    } else if (lower == "freak") {
+      s.game.randomizer = Randomizer::Freak;
     }
     return;
   }
@@ -139,6 +145,12 @@ const char* randomizer_token(Randomizer r) {
       return "7+1";
     case Randomizer::FullRandom:
       return "random";
+    case Randomizer::Torture:
+      return "torture";
+    case Randomizer::Funk:
+      return "funk";
+    case Randomizer::Freak:
+      return "freak";
     case Randomizer::SevenBag:
       break;
   }

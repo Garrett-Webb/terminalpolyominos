@@ -1,5 +1,7 @@
 #include "game/Piece.hpp"
 
+#include <algorithm>
+
 namespace tp {
 namespace {
 
@@ -57,14 +59,49 @@ constexpr Offset kCells[7][4][4] = {
     },
 };
 
+void custom_cells(const PieceSpec& spec, int rotation, Offset out[], int& out_n) {
+  out_n = std::max(1, std::min(spec.n, kMaxPieceCells));
+  const int r = ((rotation % 4) + 4) % 4;
+
+  // Integer rotation around the local origin. Floating-point pivots + rounding
+  // can split edge-connected polyominoes (especially L/J/T-like shapes).
+  for (int i = 0; i < out_n; ++i) {
+    int x = spec.cells[static_cast<std::size_t>(i)].x;
+    int y = spec.cells[static_cast<std::size_t>(i)].y;
+    for (int k = 0; k < r; ++k) {
+      // Clockwise with y+ down: (x, y) -> (-y, x)
+      const int nx = -y;
+      const int ny = x;
+      x = nx;
+      y = ny;
+    }
+    out[i] = {x, y};
+  }
+}
+
 }  // namespace
 
-void piece_cells(PieceType type, int rotation, Offset out[4]) {
-  const int t = static_cast<int>(type);
+void piece_cells(const PieceSpec& spec, int rotation, Offset out[], int& out_n) {
+  if (spec.is_custom()) {
+    custom_cells(spec, rotation, out, out_n);
+    return;
+  }
+  const int t = static_cast<int>(spec.kind);
+  if (t < 0 || t >= 7) {
+    out_n = 0;
+    return;
+  }
+  out_n = 4;
   const int r = ((rotation % 4) + 4) % 4;
   for (int i = 0; i < 4; ++i) {
     out[i] = kCells[t][r][i];
   }
+}
+
+void piece_cells(PieceType type, int rotation, Offset out[4]) {
+  int n = 0;
+  piece_cells(PieceSpec::classic(type), rotation, out, n);
+  (void)n;
 }
 
 int piece_color(PieceType type) {
@@ -83,6 +120,8 @@ int piece_color(PieceType type) {
       return 4;  // blue
     case PieceType::L:
       return 3;  // yellow/orange stand-in
+    case PieceType::Custom:
+      return 7;  // white
     case PieceType::Count:
       break;
   }
@@ -105,10 +144,35 @@ const char* piece_name(PieceType type) {
       return "J";
     case PieceType::L:
       return "L";
+    case PieceType::Custom:
+      return "?";
     case PieceType::Count:
       break;
   }
   return "?";
+}
+
+void piece_bbox(const PieceSpec& spec, int rotation, int& w, int& h) {
+  Offset cells[kMaxPieceCells];
+  int n = 0;
+  piece_cells(spec, rotation, cells, n);
+  if (n <= 0) {
+    w = 0;
+    h = 0;
+    return;
+  }
+  int min_x = cells[0].x;
+  int max_x = cells[0].x;
+  int min_y = cells[0].y;
+  int max_y = cells[0].y;
+  for (int i = 1; i < n; ++i) {
+    min_x = std::min(min_x, cells[i].x);
+    max_x = std::max(max_x, cells[i].x);
+    min_y = std::min(min_y, cells[i].y);
+    max_y = std::max(max_y, cells[i].y);
+  }
+  w = max_x - min_x + 1;
+  h = max_y - min_y + 1;
 }
 
 }  // namespace tp

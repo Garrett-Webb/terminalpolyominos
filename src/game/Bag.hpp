@@ -9,9 +9,6 @@
 namespace tp {
 
 // Piece randomizer with an explicit seed for tests/replays.
-// - SevenBag: shuffle of all 7 types
-// - SevenPlusOne: all 7 plus one extra random type, then shuffle (bag of 8)
-// - FullRandom: each piece independently uniform among the 7 (no bag)
 class Bag {
  public:
   explicit Bag(std::uint64_t seed = 1, Randomizer mode = Randomizer::SevenBag);
@@ -20,14 +17,19 @@ class Bag {
   [[nodiscard]] Randomizer randomizer() const { return mode_; }
 
   void reseed(std::uint64_t seed);
-  PieceType next();
+  PieceSpec next();
+
+  // Test helper: force refill and expose current bag contents.
+  void refill_for_test();
+  [[nodiscard]] int bag_size() const { return size_; }
+  [[nodiscard]] PieceSpec bag_at(int i) const { return bag_[static_cast<std::size_t>(i)]; }
 
  private:
   void refill();
 
   Randomizer mode_ = Randomizer::SevenBag;
   std::mt19937_64 rng_;
-  std::array<PieceType, 8> bag_{};
+  std::array<PieceSpec, kMaxBagSize> bag_{};
   int size_ = 7;
   int index_ = 7;
 };

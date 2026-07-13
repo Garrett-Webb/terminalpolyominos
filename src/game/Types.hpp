@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 
 namespace tp {
@@ -14,11 +15,25 @@ inline constexpr int kLinesPerLevel = 10;
 inline constexpr int kLockDelayMs = 500;
 inline constexpr int kClearFlashMs = 100;  // white flash before rows collapse
 inline constexpr int kHardDropFlashMs = 100;  // white flash on hard-drop lock (color only)
+inline constexpr int kMaxPieceCells = 5;
+inline constexpr int kMaxBagSize = 25;
+
+struct Offset {
+  int x = 0;
+  int y = 0;
+
+  friend bool operator==(const Offset& a, const Offset& b) {
+    return a.x == b.x && a.y == b.y;
+  }
+};
 
 enum class Randomizer : std::uint8_t {
   SevenBag = 0,      // classic 7-bag
-  SevenPlusOne = 1,  // 7-bag + 1 extra random piece (bag of 8)
-  FullRandom = 2,    // independent uniform pick each time (no bag)
+  SevenPlusOne = 1,  // 7-bag + 1 extra random classic (bag of 8)
+  FullRandom = 2,    // independent uniform pick among the 7
+  Torture = 3,       // 25-bag: 10 S + 10 Z + 5 from {I,O,T,J,L}
+  Funk = 4,          // 7 classics + 1 generated shape
+  Freak = 5,         // every piece independently generated
 };
 
 enum class PieceType : std::uint8_t {
@@ -29,7 +44,40 @@ enum class PieceType : std::uint8_t {
   Z,
   J,
   L,
+  Custom,
   Count,
+};
+
+// Classic: kind in I..L, n=4, cells unused (SRS tables).
+// Custom: kind=Custom, n in 3..5, cells[0..n) = base orientation (min x,y = 0).
+struct PieceSpec {
+  PieceType kind = PieceType::I;
+  int n = 4;
+  std::array<Offset, kMaxPieceCells> cells{};
+
+  static PieceSpec classic(PieceType type) {
+    PieceSpec s;
+    s.kind = type;
+    s.n = 4;
+    return s;
+  }
+
+  [[nodiscard]] bool is_custom() const { return kind == PieceType::Custom; }
+
+  friend bool operator==(const PieceSpec& a, const PieceSpec& b) {
+    if (a.kind != b.kind || a.n != b.n) {
+      return false;
+    }
+    if (!a.is_custom()) {
+      return true;
+    }
+    for (int i = 0; i < a.n; ++i) {
+      if (a.cells[static_cast<std::size_t>(i)] != b.cells[static_cast<std::size_t>(i)]) {
+        return false;
+      }
+    }
+    return true;
+  }
 };
 
 enum class Action : std::uint8_t {
@@ -61,11 +109,13 @@ struct Cell {
 };
 
 struct ActivePiece {
-  PieceType type = PieceType::I;
+  PieceSpec spec{};
   int x = 0;
   int y = 0;
   int rotation = 0;  // 0..3
   bool alive = false;
+
+  [[nodiscard]] PieceType kind() const { return spec.kind; }
 };
 
 struct GameConfig {

@@ -371,11 +371,15 @@ void Renderer::cell(Canvas& f, const Layout& lay, int row, int col, bool filled,
 }
 
 void Renderer::piece_preview(Canvas& f, const Layout& lay, int row, int col, int panel_w,
-                             PieceType type) {
-  Offset cells[4];
-  piece_cells(type, 0, cells);
+                             const PieceSpec& spec) {
+  Offset cells[kMaxPieceCells];
+  int n = 0;
+  piece_cells(spec, 0, cells, n);
+  if (n <= 0) {
+    return;
+  }
   int min_x = cells[0].x, max_x = cells[0].x, min_y = cells[0].y, max_y = cells[0].y;
-  for (int i = 1; i < 4; ++i) {
+  for (int i = 1; i < n; ++i) {
     min_x = std::min(min_x, cells[i].x);
     max_x = std::max(max_x, cells[i].x);
     min_y = std::min(min_y, cells[i].y);
@@ -383,8 +387,12 @@ void Renderer::piece_preview(Canvas& f, const Layout& lay, int row, int col, int
   }
 
   bool grid[4][4]{};
-  for (const Offset& o : cells) {
-    grid[o.y - min_y][o.x - min_x] = true;
+  for (int i = 0; i < n; ++i) {
+    const int gy = cells[i].y - min_y;
+    const int gx = cells[i].x - min_x;
+    if (gy >= 0 && gy < 4 && gx >= 0 && gx < 4) {
+      grid[gy][gx] = true;
+    }
   }
   const int h = max_y - min_y + 1;
   const int w = max_x - min_x + 1;
@@ -408,7 +416,7 @@ void Renderer::piece_preview(Canvas& f, const Layout& lay, int row, int col, int
       if (!grid[y][x]) {
         continue;
       }
-      cell(f, lay, row + offset_y + y * lay.cell_h, col + offset_x + x * lay.cell_w, true, type,
+      cell(f, lay, row + offset_y + y * lay.cell_h, col + offset_x + x * lay.cell_w, true, spec.kind,
            false);
     }
   }
@@ -518,11 +526,12 @@ void Renderer::draw_game(const GameState& state) {
   PieceType ghost_type = PieceType::I;
 
   if (state.lock_flash_ms > 0 && state.lock_flash.alive) {
-    Offset cells[4];
-    piece_cells(state.lock_flash.type, state.lock_flash.rotation, cells);
-    for (const Offset& o : cells) {
-      const int x = state.lock_flash.x + o.x;
-      const int y = state.lock_flash.y + o.y;
+    Offset cells[kMaxPieceCells];
+    int n = 0;
+    piece_cells(state.lock_flash.spec, state.lock_flash.rotation, cells, n);
+    for (int i = 0; i < n; ++i) {
+      const int x = state.lock_flash.x + cells[i].x;
+      const int y = state.lock_flash.y + cells[i].y;
       if (x >= 0 && x < kBoardWidth && y >= 0 && y < kBoardHeight) {
         lock_flash_mask[y][x] = true;
       }
@@ -530,24 +539,26 @@ void Renderer::draw_game(const GameState& state) {
   }
 
   if (state.ghost.alive) {
-    Offset cells[4];
-    piece_cells(state.ghost.type, state.ghost.rotation, cells);
-    ghost_type = state.ghost.type;
-    for (const Offset& o : cells) {
-      const int x = state.ghost.x + o.x;
-      const int y = state.ghost.y + o.y;
+    Offset cells[kMaxPieceCells];
+    int n = 0;
+    piece_cells(state.ghost.spec, state.ghost.rotation, cells, n);
+    ghost_type = state.ghost.kind();
+    for (int i = 0; i < n; ++i) {
+      const int x = state.ghost.x + cells[i].x;
+      const int y = state.ghost.y + cells[i].y;
       if (x >= 0 && x < kBoardWidth && y >= 0 && y < kBoardHeight) {
         ghost_mask[y][x] = true;
       }
     }
   }
   if (state.active.alive) {
-    Offset cells[4];
-    piece_cells(state.active.type, state.active.rotation, cells);
-    active_type = state.active.type;
-    for (const Offset& o : cells) {
-      const int x = state.active.x + o.x;
-      const int y = state.active.y + o.y;
+    Offset cells[kMaxPieceCells];
+    int n = 0;
+    piece_cells(state.active.spec, state.active.rotation, cells, n);
+    active_type = state.active.kind();
+    for (int i = 0; i < n; ++i) {
+      const int x = state.active.x + cells[i].x;
+      const int y = state.active.y + cells[i].y;
       if (x >= 0 && x < kBoardWidth && y >= 0 && y < kBoardHeight) {
         active_mask[y][x] = true;
       }
@@ -682,7 +693,7 @@ void Renderer::draw_game(const GameState& state) {
     };
 
     draw_counts(r++, {PieceType::I, PieceType::O, PieceType::T, PieceType::S});
-    draw_counts(r++, {PieceType::Z, PieceType::J, PieceType::L});
+    draw_counts(r++, {PieceType::Z, PieceType::J, PieceType::L, PieceType::Custom});
     clear_row(r++);
     center_text(r++, "r/Enter retry  q quit");
   }
@@ -775,6 +786,12 @@ std::string settings_value(const Settings& s, SettingsItem item) {
           return "7+1 bag";
         case Randomizer::FullRandom:
           return "full random";
+        case Randomizer::Torture:
+          return "torture";
+        case Randomizer::Funk:
+          return "funk";
+        case Randomizer::Freak:
+          return "freak";
         case Randomizer::SevenBag:
           break;
       }

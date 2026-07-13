@@ -97,7 +97,7 @@ bool SettingsMenu::is_keybind(SettingsItem item) {
 void SettingsMenu::adjust(int delta) {
   const auto item = static_cast<SettingsItem>(selected_);
   if (item == SettingsItem::Randomizer) {
-    const int n = static_cast<int>(Randomizer::FullRandom) + 1;
+    const int n = static_cast<int>(Randomizer::Freak) + 1;
     int cur = static_cast<int>(draft_.game.randomizer);
     cur = (cur + delta) % n;
     if (cur < 0) {

@@ -98,7 +98,8 @@ class Renderer {
   void cell(Canvas& f, const Layout& lay, int row, int col, bool filled, PieceType type,
             bool ghost, bool flash = false);
   // Draws a piece centered in a panel of width panel_w (columns) and height 4 cells.
-  void piece_preview(Canvas& f, const Layout& lay, int row, int col, int panel_w, PieceType type);
+  void piece_preview(Canvas& f, const Layout& lay, int row, int col, int panel_w,
+                     const PieceSpec& spec);
   void hline(Canvas& f, int row, int col, int inner_width, char edge, char fill);
   void draw_box_title(Canvas& f, int row, int col, int inner_w, std::string_view title);
 

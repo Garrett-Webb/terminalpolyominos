@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(terminalpolyominos
-  VERSION 0.2.0
+  VERSION 0.2.1
   DESCRIPTION "Lightweight colored polyomino stacking game for Unix terminals"
   LANGUAGES CXX)
 
@@ -13,6 +13,7 @@ add_library(tp_game STATIC
   src/game/Bag.cpp
   src/game/Board.cpp
   src/game/Piece.cpp
+  src/game/ShapeGen.cpp
   src/game/Game.cpp)
 target_include_directories(tp_game PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_compile_options(tp_game PRIVATE -Wall -Wextra -Wpedantic -Werror)

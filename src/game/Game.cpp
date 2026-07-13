@@ -2,6 +2,8 @@
 
 #include "game/Piece.hpp"
 
+#include <algorithm>
+
 namespace tp {
 namespace {
 
@@ -19,6 +21,9 @@ int line_clear_points(int cleared, int level) {
       break;
     case 4:
       base = 800;
+      break;
+    case 5:
+      base = 1200;
       break;
     default:
       return 0;
@@ -71,7 +76,7 @@ void Game::reset(std::uint64_t seed) {
   bag_.set_randomizer(config_.randomizer);
   bag_.reseed(seed);
   has_hold_ = false;
-  hold_piece_ = PieceType::I;
+  hold_piece_ = {};
   gravity_accum_ms_ = 0;
   lock_accum_ms_ = 0;
   locking_ = false;
@@ -227,28 +232,44 @@ void Game::fill_row_for_test(int y, PieceType type) {
 }
 
 bool Game::fits(const ActivePiece& piece) const {
-  return fits_at(piece.type, piece.x, piece.y, piece.rotation);
+  return fits_at(piece.spec, piece.x, piece.y, piece.rotation);
 }
 
-bool Game::fits_at(PieceType type, int x, int y, int rotation) const {
-  Offset cells[4];
-  piece_cells(type, rotation, cells);
-  for (const Offset& o : cells) {
-    if (state_.board.occupied(x + o.x, y + o.y)) {
+bool Game::fits_at(const PieceSpec& spec, int x, int y, int rotation) const {
+  Offset cells[kMaxPieceCells];
+  int n = 0;
+  piece_cells(spec, rotation, cells, n);
+  for (int i = 0; i < n; ++i) {
+    if (state_.board.occupied(x + cells[i].x, y + cells[i].y)) {
       return false;
     }
   }
   return true;
 }
 
-ActivePiece Game::spawn_piece(PieceType type) const {
+ActivePiece Game::spawn_piece(const PieceSpec& spec) const {
   ActivePiece p;
-  p.type = type;
+  p.spec = spec;
   p.rotation = 0;
   p.alive = true;
-  // Spawn near top-center. I/O use a slight x shift matching common guides.
-  p.x = (type == PieceType::O || type == PieceType::I) ? 3 : 3;
   p.y = 0;
+
+  Offset cells[kMaxPieceCells];
+  int n = 0;
+  piece_cells(spec, 0, cells, n);
+  int min_x = 0;
+  int max_x = 0;
+  if (n > 0) {
+    min_x = cells[0].x;
+    max_x = cells[0].x;
+    for (int i = 1; i < n; ++i) {
+      min_x = std::min(min_x, cells[i].x);
+      max_x = std::max(max_x, cells[i].x);
+    }
+  }
+  const int width = max_x - min_x + 1;
+  // Center the piece's bbox in the well, adjusting for local min_x.
+  p.x = (kBoardWidth - width) / 2 - min_x;
   return p;
 }
 
@@ -257,15 +278,13 @@ ActivePiece Game::ghost_of(const ActivePiece& piece) const {
   if (!g.alive) {
     return g;
   }
-  while (fits_at(g.type, g.x, g.y + 1, g.rotation)) {
+  while (fits_at(g.spec, g.x, g.y + 1, g.rotation)) {
     ++g.y;
   }
   return g;
 }
 
 int Game::gravity_ms_per_row() const {
-  // Simple curve: faster each level, floored so it stays playable.
-  // Level 1 ≈ 800ms/row, approaching ~50ms at high levels.
   const int level = state_.level < 1 ? 1 : state_.level;
   const int ms = 800 - (level - 1) * 50;
   return ms < 50 ? 50 : ms;
@@ -293,7 +312,6 @@ bool Game::try_move(int dx, int dy) {
   if (dy != 0) {
     cancel_lock();
   } else if (locking_) {
-    // Successful horizontal move while locking: reset lock timer (simple rule).
     lock_accum_ms_ = 0;
   }
   return true;
@@ -304,7 +322,7 @@ bool Game::try_rotate(int dir) {
   const int to = (from + dir + 4) % 4;
   const int kicks[] = {0, -1, 1, -2, 2};
   for (int kick : kicks) {
-    if (fits_at(state_.active.type, state_.active.x + kick, state_.active.y, to)) {
+    if (fits_at(state_.active.spec, state_.active.x + kick, state_.active.y, to)) {
       state_.active.rotation = to;
       state_.active.x += kick;
       refresh_ghost();
@@ -356,17 +374,18 @@ void Game::lock_active(bool from_hard_drop) {
   if (!state_.active.alive) {
     return;
   }
-  const PieceType locked_type = state_.active.type;
-  Offset cells[4];
-  piece_cells(locked_type, state_.active.rotation, cells);
-  for (const Offset& o : cells) {
-    const int x = state_.active.x + o.x;
-    const int y = state_.active.y + o.y;
+  const PieceSpec locked = state_.active.spec;
+  Offset cells[kMaxPieceCells];
+  int n = 0;
+  piece_cells(locked, state_.active.rotation, cells, n);
+  for (int i = 0; i < n; ++i) {
+    const int x = state_.active.x + cells[i].x;
+    const int y = state_.active.y + cells[i].y;
     if (state_.board.inside(x, y)) {
-      state_.board.set(x, y, locked_type);
+      state_.board.set(x, y, locked.kind);
     }
   }
-  const auto ti = static_cast<std::size_t>(locked_type);
+  const auto ti = static_cast<std::size_t>(locked.kind);
   if (ti < state_.pieces_placed.size()) {
     ++state_.pieces_placed[ti];
   }
@@ -441,8 +460,7 @@ void Game::finish_line_clear() {
 }
 
 void Game::spawn_next() {
-  // Take from next queue; refill from bag.
-  const PieceType type = state_.next[0];
+  const PieceSpec type = state_.next[0];
   const int n = state_.next_count;
   for (int i = 0; i < n - 1; ++i) {
     state_.next[static_cast<std::size_t>(i)] = state_.next[static_cast<std::size_t>(i + 1)];
@@ -471,7 +489,7 @@ void Game::hold() {
   if (state_.hold_used || !state_.active.alive) {
     return;
   }
-  const PieceType current = state_.active.type;
+  const PieceSpec current = state_.active.spec;
   if (!has_hold_) {
     has_hold_ = true;
     hold_piece_ = current;
@@ -485,7 +503,7 @@ void Game::hold() {
     return;
   }
 
-  const PieceType swap = hold_piece_;
+  const PieceSpec swap = hold_piece_;
   hold_piece_ = current;
   state_.hold = hold_piece_;
   ActivePiece swapped = spawn_piece(swap);
@@ -512,7 +530,7 @@ void Game::begin_lock_if_grounded() {
   if (!state_.active.alive) {
     return;
   }
-  if (fits_at(state_.active.type, state_.active.x, state_.active.y + 1, state_.active.rotation)) {
+  if (fits_at(state_.active.spec, state_.active.x, state_.active.y + 1, state_.active.rotation)) {
     cancel_lock();
     return;
   }

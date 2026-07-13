@@ -16,10 +16,25 @@ the CPU.
 
 - Hold, ghost piece, lock delay, soft / hard / sonic drop
 - Remappable keys and timing via an in-game settings menu (`o`)
-- Randomizers: 7-bag (default), 7+1 bag, or full random
+- Six piece randomizers — from classic 7-bag to generated “freak” polyominoes
 - NEXT queue length 1–5; line-clear and hard-drop flash polish
 - ANSI color when available (`NO_COLOR` / `TERM=dumb` respected)
 - Config under `~/.config/tpoly/.tpolyrc` (XDG)
+
+### Randomizers
+
+Pick one in Settings (`o`) or set `randomizer=` in the rc file:
+
+| Mode | Token | What you get |
+|---|---|---|
+| **7-bag** (default) | `7bag` | Shuffle of all seven classic pieces; refill when empty |
+| **7+1 bag** | `7+1` | All seven plus one extra classic, shuffle eight |
+| **Full random** | `random` | Each piece picked independently from the seven |
+| **Torture** | `torture` | Bag of 25: **10×S**, **10×Z**, and **5** from `{I,O,T,J,L}` |
+| **Funk** | `funk` | Seven classics plus **one generated** shape, shuffled |
+| **Freak** | `freak` | **Every** piece is freshly generated |
+
+**Generated shapes** (funk / freak) are edge-connected polyominoes with **3–5** cells (about **30% / 40% / 30%**), kept inside a **4×4** box so they still feel standard-sized. They paint white and show as `?` on the game-over stats.
 
 ---
 
@@ -89,7 +104,7 @@ cmake --install build --prefix ~/.local
 
 | Path | Role |
 |---|---|
-| `src/game/` | Pure engine (`tp_game`) — no terminal I/O |
+| `src/game/` | Pure engine (`tp_game`) — bag, shape gen, board |
 | `src/app/` | Main loop, screens, settings menu |
 | `src/terminal/` | Raw TTY, ANSI, key decode |
 | `src/input/` | Keybinds → actions |
@@ -106,7 +121,7 @@ cmake --install build --prefix ~/.local
 
 (`$XDG_CONFIG_HOME/tpoly/.tpolyrc` if set.) Legacy `~/.tpolyrc` is read if the XDG file is missing.
 
-Timing keys: `move_interval_ms`, `soft_drop_interval_ms`, `release_ms`, `lock_delay_ms`, `lines_per_level`, `next_count` (1–5), `randomizer` (`7bag`, `7+1`, `random`).
+Timing keys: `move_interval_ms`, `soft_drop_interval_ms`, `release_ms`, `lock_delay_ms`, `lines_per_level`, `next_count` (1–5), `randomizer` (`7bag`, `7+1`, `random`, `torture`, `funk`, `freak`).
 
 Keybind keys (comma-separated tokens, e.g. `left,a,h`): `key_left`, `key_right`, `key_soft_drop`, `key_hard_drop`, `key_sonic_drop`, `key_rotate_cw`, `key_rotate_ccw`, `key_hold`, `key_pause`, `key_quit`, `key_restart`, `key_settings`.
 

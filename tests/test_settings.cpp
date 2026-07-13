@@ -75,6 +75,13 @@ void test_randomizer_parse() {
   TP_CHECK(d.game.randomizer == tp::Randomizer::FullRandom);
   const tp::Settings e = tp::Settings::parse(d.serialize());
   TP_CHECK(e.game.randomizer == tp::Randomizer::FullRandom);
+  const tp::Settings f = tp::Settings::parse("randomizer=torture\n");
+  TP_CHECK(f.game.randomizer == tp::Randomizer::Torture);
+  const tp::Settings g = tp::Settings::parse("randomizer=funk\n");
+  TP_CHECK(g.game.randomizer == tp::Randomizer::Funk);
+  const tp::Settings h = tp::Settings::parse("randomizer=freak\n");
+  TP_CHECK(h.game.randomizer == tp::Randomizer::Freak);
+  TP_CHECK(tp::Settings::parse(f.serialize()).game.randomizer == tp::Randomizer::Torture);
 }
 
 void test_next_count_parse() {

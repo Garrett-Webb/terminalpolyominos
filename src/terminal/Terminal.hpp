@@ -23,6 +23,8 @@ class Terminal {
 
   [[nodiscard]] bool ok() const { return ok_; }
   [[nodiscard]] bool color_enabled() const { return color_; }
+  // True when color_enabled and TERM looks like a 256-color capable terminal.
+  [[nodiscard]] bool colors_256() const { return color_ && colors_256_; }
   [[nodiscard]] TermSize size() const;
 
   void write(std::string_view s);
@@ -38,8 +40,9 @@ class Terminal {
   void move_cursor(int row, int col);  // 1-based
   void hide_cursor();
   void show_cursor();
-  void set_fg(int ansi_color);  // 0–7 or 8–15 bright if supported via 90–97
-  void set_bg(int ansi_color);  // 0–7 normal, 8–15 bright (100–107)
+  // Color index 0–255. Uses 38;5 / 48;5 when colors_256(); else classic 16-color SGR.
+  void set_fg(int color);
+  void set_bg(int color);
   void set_bold(bool on);
   void set_dim(bool on);
   void reset_attrs();
@@ -51,6 +54,7 @@ class Terminal {
  private:
   bool ok_ = false;
   bool color_ = false;
+  bool colors_256_ = false;
   bool alt_screen_ = false;
   bool raw_ = false;
   termios original_{};

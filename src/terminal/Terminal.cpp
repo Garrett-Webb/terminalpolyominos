@@ -55,6 +55,32 @@ bool env_truthy_no_color() {
   return v != nullptr && v[0] != '\0';
 }
 
+bool term_looks_256color(const char* term) {
+  if (term == nullptr || term[0] == '\0') {
+    return false;
+  }
+  if (std::strstr(term, "256color") != nullptr) {
+    return true;
+  }
+  // Common TERM values that support indexed 256 without the substring.
+  static constexpr const char* kKnown[] = {
+      "foot", "foot-extra", "xterm-ghostty", "ghostty", "alacritty", "wezterm",
+  };
+  for (const char* k : kKnown) {
+    if (std::strcmp(term, k) == 0) {
+      return true;
+    }
+  }
+  const char* colorterm = std::getenv("COLORTERM");
+  if (colorterm != nullptr &&
+      (std::strcmp(colorterm, "truecolor") == 0 ||
+       std::strcmp(colorterm, "24bit") == 0)) {
+    // Truecolor terminals almost always handle 38;5 as well.
+    return true;
+  }
+  return false;
+}
+
 bool stdout_is_tty() { return ::isatty(STDOUT_FILENO) == 1; }
 bool stdin_is_tty() { return ::isatty(STDIN_FILENO) == 1; }
 
@@ -103,6 +129,7 @@ Terminal::Terminal() {
   if (term != nullptr && std::strcmp(term, "dumb") == 0) {
     color_ = false;
   }
+  colors_256_ = color_ && term_looks_256color(term);
 
   ok_ = true;
 }
@@ -202,34 +229,38 @@ void Terminal::move_cursor(int row, int col) {
 void Terminal::hide_cursor() { write("\x1b[?25l"); }
 void Terminal::show_cursor() { write("\x1b[?25h"); }
 
-void Terminal::set_fg(int ansi_color) {
+void Terminal::set_fg(int color) {
   if (!color_) {
     return;
   }
-  char buf[16];
+  char buf[24];
   int n = 0;
-  if (ansi_color >= 8 && ansi_color <= 15) {
-    n = std::snprintf(buf, sizeof(buf), "\x1b[%dm", 90 + (ansi_color - 8));
+  const int c = color < 0 ? 0 : (color > 255 ? 255 : color);
+  if (colors_256_) {
+    n = std::snprintf(buf, sizeof(buf), "\x1b[38;5;%dm", c);
+  } else if (c >= 8 && c <= 15) {
+    n = std::snprintf(buf, sizeof(buf), "\x1b[%dm", 90 + (c - 8));
   } else {
-    const int c = ansi_color < 0 ? 0 : (ansi_color > 7 ? 7 : ansi_color);
-    n = std::snprintf(buf, sizeof(buf), "\x1b[%dm", 30 + c);
+    n = std::snprintf(buf, sizeof(buf), "\x1b[%dm", 30 + (c > 7 ? 7 : c));
   }
   if (n > 0) {
     write(std::string_view(buf, static_cast<std::size_t>(n)));
   }
 }
 
-void Terminal::set_bg(int ansi_color) {
+void Terminal::set_bg(int color) {
   if (!color_) {
     return;
   }
-  char buf[16];
+  char buf[24];
   int n = 0;
-  if (ansi_color >= 8 && ansi_color <= 15) {
-    n = std::snprintf(buf, sizeof(buf), "\x1b[%dm", 100 + (ansi_color - 8));
+  const int c = color < 0 ? 0 : (color > 255 ? 255 : color);
+  if (colors_256_) {
+    n = std::snprintf(buf, sizeof(buf), "\x1b[48;5;%dm", c);
+  } else if (c >= 8 && c <= 15) {
+    n = std::snprintf(buf, sizeof(buf), "\x1b[%dm", 100 + (c - 8));
   } else {
-    const int c = ansi_color < 0 ? 0 : (ansi_color > 7 ? 7 : ansi_color);
-    n = std::snprintf(buf, sizeof(buf), "\x1b[%dm", 40 + c);
+    n = std::snprintf(buf, sizeof(buf), "\x1b[%dm", 40 + (c > 7 ? 7 : c));
   }
   if (n > 0) {
     write(std::string_view(buf, static_cast<std::size_t>(n)));

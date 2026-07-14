@@ -19,16 +19,17 @@ the CPU.
 - **Back-to-back** (×1.5 on difficult clears) and **combo** (`50 × n × level`)
 - Remappable keys and timing via an in-game settings menu (`o`)
 - Six piece randomizers — from classic 7-bag to generated “freak” polyominoes
-- **Local high scores** per randomizer (`h` on title; file `~/.local/share/tpoly/scores`)
+- Play modes: **Endless**, **Marathon** (150 lines), **Sprint** (40 lines)
+- **Local high scores** per randomizer × mode (`h` on title; `~/.local/share/tpoly/scores`)
 - NEXT queue length 1–5; line-clear and hard-drop flash polish
-- ANSI color when available (`NO_COLOR` / `TERM=dumb` respected)
+- **256-color** piece palette when `TERM` supports it (orange L / yellow O); 16-color fallback; `NO_COLOR` / `TERM=dumb` respected
 - Config under `~/.config/tpoly/.tpolyrc` (XDG)
 
 ### Rotation & scoring
 
 Classic **I O T S Z J L** use **SRS** wall-kick tables (separate **JLSTZ** and **I** tests; **O** does not kick). Generated **Custom** pieces (funk / freak) use a larger freestyle kick set — wall, floor, and ceiling offsets up to 3 cells, ordered small-first with CW/CCW bias — but **no** spin score multipliers.
 
-Custom piece colors (when **Freak colors** is on, default): each shape hashes to a **bright** ANSI background (8–15), so they don’t reuse classic red/green/yellow/…. Turn the setting **off** for plain white customs if bright bgs clash with your terminal theme.
+Custom piece colors (when **Freak colors** is on, default): each shape hashes onto the active palette (256-color range when available, else bright 8–15). Turn the setting **off** for plain white customs if they clash with your terminal theme.
 
 **T-piece spins** (T only): if the last successful action before lock was a rotate, and at least three of the four diagonal corners around the T’s center are filled (walls count):
 
@@ -164,11 +165,13 @@ cmake --install build --prefix ~/.local
 
 (`$XDG_CONFIG_HOME/tpoly/.tpolyrc` if set.) Legacy `~/.tpolyrc` is read if the XDG file is missing.
 
-Timing keys: `move_interval_ms`, `soft_drop_interval_ms`, `release_ms`, `lock_delay_ms`, `lines_per_level`, `next_count` (1–5), `randomizer` (`7bag`, `7+1`, `random`, `torture`, `funk`, `freak`), `freak_colors` (`on` / `off` — hashed bright colors for custom pieces).
+Timing keys: `move_interval_ms`, `soft_drop_interval_ms`, `release_ms`, `lock_delay_ms`, `lines_per_level`, `next_count` (1–5), `randomizer` (`7bag`, `7+1`, `random`, `torture`, `funk`, `freak`), `play_mode` (`endless`, `marathon`, `sprint`), `freak_colors` (`on` / `off`).
 
-Keybind keys (comma-separated tokens, e.g. `left,a,h`): `key_left`, `key_right`, `key_soft_drop`, `key_hard_drop`, `key_sonic_drop`, `key_rotate_cw`, `key_rotate_ccw`, `key_hold`, `key_pause`, `key_quit`, `key_restart`, `key_settings`.
+Keybind keys (comma-separated tokens, e.g. `left,a`): `key_left`, `key_right`, `key_soft_drop`, `key_hard_drop`, `key_sonic_drop`, `key_rotate_cw`, `key_rotate_ccw`, `key_hold`, `key_pause`, `key_quit`, `key_restart`, `key_settings`, `key_scores` (default `h`).
 
-High scores (separate from rc): `~/.local/share/tpoly/scores` — one sectioned file with a top-10 board per randomizer. Title screen **`h`** opens the list (Left/Right cycles boards). Qualifying game overs prompt for a name (prefilled from `$USER`; Enter saves, Esc discards). Settings → **Clear high scores** requires typing **`yes`**.
+High scores (separate from rc): `~/.local/share/tpoly/scores` — top **5** per **randomizer × play mode** (sections like `7bag`, `7bag:marathon`, `7bag:sprint`). Title **`h`** (or your `key_scores` bind) opens a per-randomizer page listing Endless / Marathon / Sprint (Left/Right cycles randomizers). Enter on the title always starts a run; remapped play keys do not steal that. Qualifying game overs / clears prompt for a name (prefilled from `$USER`; Enter saves, Esc discards). Settings → **Clear high scores** requires typing **`yes`**.
+
+**Input note:** terminals usually only auto-repeat the last key held, so rotating while holding left/right often stops lateral movement. That is expected without a key-up keyboard protocol.
 
 ---
 

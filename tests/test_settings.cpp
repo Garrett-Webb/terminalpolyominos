@@ -106,6 +106,23 @@ void test_freak_colors_parse() {
   TP_CHECK(!tp::Settings::parse(s.serialize()).game.freak_colors);
 }
 
+void test_play_mode_parse() {
+  TP_CHECK(tp::Settings{}.game.play_mode == tp::PlayMode::Endless);
+  TP_CHECK(tp::Settings::parse("play_mode=marathon\n").game.play_mode ==
+           tp::PlayMode::Marathon);
+  TP_CHECK(tp::Settings::parse("play_mode=sprint\n").game.play_mode == tp::PlayMode::Sprint);
+  tp::Settings s;
+  s.game.play_mode = tp::PlayMode::Marathon;
+  TP_CHECK(tp::Settings::parse(s.serialize()).game.play_mode == tp::PlayMode::Marathon);
+}
+
+void test_key_scores_parse() {
+  const tp::Settings s =
+      tp::Settings::parse("key_scores=j\n");
+  TP_CHECK(s.input.keys.action_for(tp::KeyEvent{tp::Key::Char, 'j'}) == tp::Action::Scores);
+  TP_CHECK(tp::Settings::parse(s.serialize()).input.keys.scores.size() == 1);
+}
+
 void test_ctrl_c_always_quits() {
   tp::Input input;
   input.on_key(tp::KeyEvent{tp::Key::CtrlC, 0});
@@ -124,6 +141,8 @@ int main() {
   test_randomizer_parse();
   test_next_count_parse();
   test_freak_colors_parse();
+  test_play_mode_parse();
+  test_key_scores_parse();
   test_ctrl_c_always_quits();
   return tp::test::summary("tp_settings_tests");
 }

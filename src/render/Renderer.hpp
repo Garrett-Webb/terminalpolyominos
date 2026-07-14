@@ -2,6 +2,7 @@
 
 #include "app/SettingsMenu.hpp"
 #include "game/Game.hpp"
+#include "input/Input.hpp"
 #include "terminal/Terminal.hpp"
 #include "util/HighScores.hpp"
 
@@ -37,16 +38,18 @@ struct GameOverExtras {
   bool editing_name = false;
   std::string_view name_buf{};
   Randomizer board = Randomizer::SevenBag;
+  PlayMode mode = PlayMode::Endless;
 };
 
 class Renderer {
  public:
   explicit Renderer(Terminal& term);
 
-  void draw_title(const HighScores& scores, Randomizer current);
+  void draw_title(const HighScores& scores, Randomizer current, PlayMode play_mode,
+                  const Keybinds& keybinds);
   void draw_scores(const HighScores& scores, Randomizer viewing);
   void draw_too_small();
-  void draw_game(const GameState& state, bool freak_colors = true,
+  void draw_game(const GameState& state, const GameConfig& config,
                  const GameOverExtras* game_over = nullptr);
   void draw_settings(const SettingsMenuView& menu);
 
@@ -60,8 +63,8 @@ class Renderer {
  private:
   struct Glyph {
     char ch = ' ';
-    std::int8_t fg = -1;
-    std::int8_t bg = -1;
+    std::int16_t fg = -1;
+    std::int16_t bg = -1;
     bool bold = false;
     bool dim = false;
 

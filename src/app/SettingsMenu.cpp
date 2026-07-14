@@ -94,7 +94,7 @@ bool SettingsMenu::is_timing(SettingsItem item) {
 }
 
 bool SettingsMenu::is_keybind(SettingsItem item) {
-  return item >= SettingsItem::KeyLeft && item <= SettingsItem::KeySettings;
+  return item >= SettingsItem::KeyLeft && item <= SettingsItem::KeyScores;
 }
 
 void SettingsMenu::adjust(int delta) {
@@ -107,6 +107,17 @@ void SettingsMenu::adjust(int delta) {
       cur += n;
     }
     draft_.game.randomizer = static_cast<Randomizer>(cur);
+    mark_dirty();
+    return;
+  }
+  if (item == SettingsItem::PlayMode) {
+    const int n = static_cast<int>(PlayMode::Sprint) + 1;
+    int cur = static_cast<int>(draft_.game.play_mode);
+    cur = (cur + delta) % n;
+    if (cur < 0) {
+      cur += n;
+    }
+    draft_.game.play_mode = static_cast<PlayMode>(cur);
     mark_dirty();
     return;
   }
@@ -157,6 +168,8 @@ std::vector<KeySpec>* SettingsMenu::key_list(SettingsItem item) {
       return &k.restart;
     case SettingsItem::KeySettings:
       return &k.settings;
+    case SettingsItem::KeyScores:
+      return &k.scores;
     default:
       return nullptr;
   }
@@ -187,6 +200,10 @@ void SettingsMenu::reset_defaults() {
 void SettingsMenu::activate() {
   const auto item = static_cast<SettingsItem>(selected_);
   if (item == SettingsItem::Randomizer) {
+    adjust(1);
+    return;
+  }
+  if (item == SettingsItem::PlayMode) {
     adjust(1);
     return;
   }

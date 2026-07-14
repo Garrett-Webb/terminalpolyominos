@@ -543,24 +543,27 @@ void test_custom_piece_color_hash() {
   bar_shuffled.cells[2] = {2, 0};
   bar_shuffled.cells[3] = {1, 0};
 
-  const int on_a = tp::piece_color(bar, true);
-  const int on_b = tp::piece_color(bar_shuffled, true);
+  const int on_a = tp::piece_color(bar, true, true);
+  const int on_b = tp::piece_color(bar_shuffled, true, true);
   TP_CHECK(on_a == on_b);
-  TP_CHECK(on_a >= 8 && on_a <= 15);
-  TP_CHECK(tp::piece_color(bar, false) == 7);
+  TP_CHECK(on_a >= 20 && on_a <= 230);
+  TP_CHECK(tp::piece_color(bar, false, false) == 7);
+  TP_CHECK(tp::piece_color(bar, false, true) == 15);
 
   // Different geometry should (usually) get a different bright color; at least
-  // stay in the bright range.
+  // stay in the 256-palette freak range.
   tp::PieceSpec tet = bar;
   tet.n = 3;
   tet.cells[0] = {0, 0};
   tet.cells[1] = {1, 0};
   tet.cells[2] = {0, 1};
-  const int tet_c = tp::piece_color(tet, true);
-  TP_CHECK(tet_c >= 8 && tet_c <= 15);
+  const int tet_c = tp::piece_color(tet, true, true);
+  TP_CHECK(tet_c >= 20 && tet_c <= 230);
 
-  TP_CHECK(tp::piece_color(tp::PieceSpec::classic(tp::PieceType::T), true) ==
-           tp::piece_color(tp::PieceType::T));
+  TP_CHECK(tp::piece_color(tp::PieceSpec::classic(tp::PieceType::T), true, true) ==
+           tp::piece_color(tp::PieceType::T, true));
+  TP_CHECK(tp::piece_color(tp::PieceType::L, true) != tp::piece_color(tp::PieceType::O, true));
+  TP_CHECK(tp::piece_color(tp::PieceType::L, false) != tp::piece_color(tp::PieceType::O, false));
 }
 
 void test_custom_wall_kick_left() {
@@ -998,6 +1001,29 @@ void test_hard_drop_flash() {
   TP_CHECK(game.state().active.alive);
 }
 
+void test_sprint_finish_on_line_goal() {
+  tp::GameConfig cfg;
+  cfg.clear_flash_ms = 0;
+  cfg.hard_drop_flash_ms = 0;
+  cfg.play_mode = tp::PlayMode::Sprint;
+  tp::Game game(cfg);
+  game.reset(1);
+  game.set_lines_for_test(tp::kSprintLineGoal - 1);
+
+  game.fill_row_for_test(tp::kBoardHeight - 1);
+  tp::ActivePiece p;
+  p.spec = tp::PieceSpec::classic(tp::PieceType::O);
+  p.x = 4;
+  p.y = tp::kBoardHeight - 3;
+  p.rotation = 0;
+  p.alive = true;
+  game.set_active_for_test(p);
+  game.apply(tp::Action::HardDrop);
+
+  TP_CHECK(game.state().lines == tp::kSprintLineGoal);
+  TP_CHECK(game.state().phase == tp::Phase::Finished);
+}
+
 }  // namespace
 
 int main() {
@@ -1039,5 +1065,6 @@ int main() {
   test_pieces_placed_counted_on_lock();
   test_hard_drop_flash();
   test_custom_piece_color_hash();
+  test_sprint_finish_on_line_goal();
   return tp::test::summary("tp_tests");
 }

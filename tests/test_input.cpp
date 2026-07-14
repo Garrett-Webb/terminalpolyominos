@@ -77,6 +77,18 @@ void test_custom_keybinds() {
   TP_CHECK(input.drain().empty());
 }
 
+void test_default_scores_key() {
+  tp::Keybinds kb;
+  TP_CHECK(kb.format_list(kb.scores) == "h");
+  // `h` must not be claimed by left (old vim hjkl default).
+  for (const auto& k : kb.left) {
+    TP_CHECK(!(k.key == tp::Key::Char && k.ch == 'h'));
+  }
+  const auto act = kb.action_for(tp::KeyEvent{tp::Key::Char, 'h'});
+  TP_CHECK(act.has_value());
+  TP_CHECK(*act == tp::Action::Scores);
+}
+
 }  // namespace
 
 int main() {
@@ -84,5 +96,6 @@ int main() {
   test_hold_steps_after_key_repeat();
   test_sonic_and_hard_drop_keys();
   test_custom_keybinds();
+  test_default_scores_key();
   return tp::test::summary("tp_input_tests");
 }

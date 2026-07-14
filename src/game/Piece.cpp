@@ -105,7 +105,31 @@ void piece_cells(PieceType type, int rotation, Offset out[4]) {
   (void)n;
 }
 
-int piece_color(PieceType type) {
+int piece_color(PieceType type, bool colors_256) {
+  if (colors_256) {
+    switch (type) {
+      case PieceType::I:
+        return 51;  // cyan
+      case PieceType::O:
+        return 226;  // yellow
+      case PieceType::T:
+        return 129;  // purple
+      case PieceType::S:
+        return 46;  // green
+      case PieceType::Z:
+        return 196;  // red
+      case PieceType::J:
+        return 33;  // blue
+      case PieceType::L:
+        return 208;  // orange
+      case PieceType::Custom:
+        return 15;
+      case PieceType::Count:
+        break;
+    }
+    return 15;
+  }
+
   switch (type) {
     case PieceType::I:
       return 6;  // cyan
@@ -120,21 +144,21 @@ int piece_color(PieceType type) {
     case PieceType::J:
       return 4;  // blue
     case PieceType::L:
-      return 3;  // yellow/orange stand-in
+      return 11;  // bright yellow (orange stand-in)
     case PieceType::Custom:
-      return 7;  // white (shape-specific color uses PieceSpec overload)
+      return 7;
     case PieceType::Count:
       break;
   }
   return 7;
 }
 
-int piece_color(const PieceSpec& spec, bool freak_colors) {
+int piece_color(const PieceSpec& spec, bool freak_colors, bool colors_256) {
   if (!spec.is_custom()) {
-    return piece_color(spec.kind);
+    return piece_color(spec.kind, colors_256);
   }
   if (!freak_colors) {
-    return 7;
+    return flash_white(colors_256);
   }
 
   // FNV-1a over sorted cell keys so equal shapes match regardless of array order.
@@ -163,6 +187,10 @@ int piece_color(const PieceSpec& spec, bool freak_colors) {
   for (int i = 0; i < n; ++i) {
     h ^= keys[static_cast<std::size_t>(i)];
     h *= kPrime;
+  }
+  if (colors_256) {
+    // Skip darkest cube corners; avoid pure white flash index 15.
+    return 20 + static_cast<int>(h % 211);  // 20..230
   }
   return 8 + static_cast<int>(h % 8);  // bright 8–15
 }

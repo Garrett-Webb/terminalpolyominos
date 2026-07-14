@@ -90,6 +90,26 @@ void apply_kv(Settings& s, const std::string& key, const std::string& value) {
     (void)kb.set_list(kb.settings, value);
     return;
   }
+  if (key == "key_scores") {
+    (void)kb.set_list(kb.scores, value);
+    return;
+  }
+  if (key == "play_mode") {
+    const std::string v = trim(value);
+    std::string lower;
+    lower.reserve(v.size());
+    for (unsigned char c : v) {
+      lower.push_back(static_cast<char>(std::tolower(c)));
+    }
+    if (lower == "endless" || lower == "classic" || lower == "normal") {
+      s.game.play_mode = PlayMode::Endless;
+    } else if (lower == "marathon") {
+      s.game.play_mode = PlayMode::Marathon;
+    } else if (lower == "sprint") {
+      s.game.play_mode = PlayMode::Sprint;
+    }
+    return;
+  }
   if (key == "randomizer") {
     const std::string v = trim(value);
     std::string lower;
@@ -153,6 +173,18 @@ void apply_kv(Settings& s, const std::string& key, const std::string& value) {
   }
 }
 
+const char* play_mode_rc_token(PlayMode mode) {
+  switch (mode) {
+    case PlayMode::Marathon:
+      return "marathon";
+    case PlayMode::Sprint:
+      return "sprint";
+    case PlayMode::Endless:
+      break;
+  }
+  return "endless";
+}
+
 const char* randomizer_token(Randomizer r) {
   switch (r) {
     case Randomizer::SevenPlusOne:
@@ -206,6 +238,8 @@ std::string Settings::serialize() const {
       << "next_count=" << game.next_count << "   # 1.." << kNextQueueMax << '\n'
       << "randomizer=" << randomizer_token(game.randomizer)
       << "   # 7bag | 7+1 | random | torture | funk | freak\n"
+      << "play_mode=" << play_mode_rc_token(game.play_mode)
+      << "   # endless | marathon | sprint\n"
       << "freak_colors=" << (game.freak_colors ? "on" : "off")
       << "   # bright hashed colors for custom pieces\n"
       << "#\n"
@@ -222,7 +256,8 @@ std::string Settings::serialize() const {
       << "key_pause=" << k.format_list(k.pause) << '\n'
       << "key_quit=" << k.format_list(k.quit) << '\n'
       << "key_restart=" << k.format_list(k.restart) << '\n'
-      << "key_settings=" << k.format_list(k.settings) << '\n';
+      << "key_settings=" << k.format_list(k.settings) << '\n'
+      << "key_scores=" << k.format_list(k.scores) << '\n';
   return out.str();
 }
 
@@ -279,8 +314,17 @@ Settings Settings::load_or_create() {
   }
 
   Settings s = parse(text);
-  // Upgrade older rc files missing newer keys.
-  if (read_file(primary).empty() || text.find("key_settings=") == std::string::npos ||
+  // Older files claimed `h` on left (hjkl). Parsing left first strips the default
+  // scores bind (`h`), leaving an empty list. Restore the default scores key.
+  bool restored_scores = false;
+  if (s.input.keys.scores.empty()) {
+    restored_scores = s.input.keys.set_list(s.input.keys.scores, "h");
+  }
+  // Upgrade older rc files missing newer keys (rewrites with current defaults merged).
+  if (restored_scores || read_file(primary).empty() ||
+      text.find("key_settings=") == std::string::npos ||
+      text.find("key_scores=") == std::string::npos ||
+      text.find("play_mode=") == std::string::npos ||
       text.find("randomizer=") == std::string::npos ||
       text.find("next_count=") == std::string::npos ||
       text.find("freak_colors=") == std::string::npos) {

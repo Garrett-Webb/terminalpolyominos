@@ -21,6 +21,8 @@ struct GameState {
   int score = 0;
   int level = 1;
   int lines = 0;
+  // Wall-clock play time while phase == Playing (ms). Used for Sprint / HUD.
+  int play_ms = 0;
   // Consecutive clears: 0 = none yet / broken. After first clear becomes 1; bonus uses
   // pre-increment value so 2nd clear awards 50×1×level.
   int combo = 0;
@@ -57,6 +59,7 @@ class Game {
   void set_active_for_test(ActivePiece piece);
   void fill_row_for_test(int y, PieceType type = PieceType::I);
   void set_cell_for_test(int x, int y, PieceType type = PieceType::I);
+  void set_lines_for_test(int lines);
 
  private:
   void mark_dirty() { dirty_ = true; }

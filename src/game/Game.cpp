@@ -200,6 +200,7 @@ void Game::apply(Action action) {
     case Action::Quit:
     case Action::Restart:
     case Action::Settings:
+    case Action::Scores:
       break;
   }
 }
@@ -211,6 +212,8 @@ void Game::tick(int elapsed_ms) {
   if (state_.phase != Phase::Playing) {
     return;
   }
+
+  state_.play_ms += elapsed_ms;
 
   if (state_.lock_flash_ms > 0) {
     state_.lock_flash_ms -= elapsed_ms;
@@ -270,14 +273,20 @@ void Game::set_active_for_test(ActivePiece piece) {
 }
 
 void Game::fill_row_for_test(int y, PieceType type) {
-  const int color = piece_color(PieceSpec::classic(type));
+  const int color = piece_color(PieceSpec::classic(type), config_.colors_256);
   for (int x = 0; x < kBoardWidth; ++x) {
     state_.board.set(x, y, type, color);
   }
 }
 
 void Game::set_cell_for_test(int x, int y, PieceType type) {
-  state_.board.set(x, y, type, piece_color(PieceSpec::classic(type)));
+  state_.board.set(x, y, type, piece_color(PieceSpec::classic(type), config_.colors_256));
+}
+
+void Game::set_lines_for_test(int lines) {
+  state_.lines = lines;
+  state_.level = 1 + lines / config_.lines_per_level;
+  mark_dirty();
 }
 
 bool Game::fits(const ActivePiece& piece) const {
@@ -461,7 +470,8 @@ void Game::lock_active(bool from_hard_drop) {
     const int x = state_.active.x + cells[i].x;
     const int y = state_.active.y + cells[i].y;
     if (state_.board.inside(x, y)) {
-      state_.board.set(x, y, locked.kind, piece_color(locked, config_.freak_colors));
+      state_.board.set(x, y, locked.kind,
+                       piece_color(locked, config_.freak_colors, config_.colors_256));
     }
   }
   const auto ti = static_cast<std::size_t>(locked.kind);
@@ -541,6 +551,14 @@ void Game::finish_line_clear() {
   pending_clear_count_ = 0;
   state_.clear_flash_ms = 0;
   state_.hold_used = false;
+  const int goal = play_mode_line_goal(config_.play_mode);
+  if (goal > 0 && state_.lines >= goal) {
+    state_.active = {};
+    state_.ghost = {};
+    state_.phase = Phase::Finished;
+    mark_dirty();
+    return;
+  }
   spawn_next();
   mark_dirty();
 }

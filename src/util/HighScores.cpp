@@ -4,12 +4,15 @@
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <system_error>
+#include <utility>
 
 namespace tp {
 namespace {
@@ -38,12 +41,14 @@ bool parse_i64(std::string_view s, std::int64_t& out) {
   if (s.empty()) {
     return false;
   }
-  char* end = nullptr;
-  const auto v = std::strtoll(std::string(s).c_str(), &end, 10);
-  if (end == nullptr || *end != '\0') {
+  std::int64_t v = 0;
+  const char* first = s.data();
+  const char* last = s.data() + s.size();
+  const auto result = std::from_chars(first, last, v);
+  if (result.ec != std::errc{} || result.ptr != last) {
     return false;
   }
-  out = static_cast<std::int64_t>(v);
+  out = v;
   return true;
 }
 
@@ -57,10 +62,10 @@ bool parse_int(std::string_view s, int& out) {
 }
 
 std::optional<ScoreEntry> parse_entry_line(std::string_view line) {
-  std::string fields[6];
+  std::string fields[7];
   int n = 0;
   std::size_t i = 0;
-  while (i < line.size() && n < 6) {
+  while (i < line.size() && n < 7) {
     while (i < line.size() && std::isspace(static_cast<unsigned char>(line[i]))) {
       ++i;
     }
@@ -73,7 +78,7 @@ std::optional<ScoreEntry> parse_entry_line(std::string_view line) {
     }
     fields[n++] = std::string(line.substr(start, i - start));
   }
-  if (n != 6) {
+  if (n != 6 && n != 7) {
     return std::nullopt;
   }
   ScoreEntry e;
@@ -91,17 +96,50 @@ std::optional<ScoreEntry> parse_entry_line(std::string_view line) {
   if (!parse_i64(fields[5], e.unix_time)) {
     return std::nullopt;
   }
+  if (n == 7) {
+    if (!parse_int(fields[6], e.elapsed_ms)) {
+      return std::nullopt;
+    }
+  }
   return e;
 }
 
 }  // namespace
 
-std::size_t HighScores::index_of(Randomizer r) {
-  const auto i = static_cast<std::size_t>(r);
-  if (i >= 6) {
-    return 0;
+std::size_t HighScores::index_of(Randomizer r, PlayMode mode) {
+  const auto ri = static_cast<std::size_t>(r);
+  const auto mi = static_cast<std::size_t>(mode);
+  if (ri >= 6) {
+    return static_cast<std::size_t>(mode) * 6;
   }
-  return i;
+  if (mi >= static_cast<std::size_t>(kPlayModeCount)) {
+    return ri;
+  }
+  return mi * 6 + ri;
+}
+
+int HighScores::flat_index(Randomizer r, PlayMode mode) {
+  return static_cast<int>(index_of(r, mode));
+}
+
+Randomizer HighScores::flat_randomizer(int flat) {
+  const int i = ((flat % kHighScoreBoardCount) + kHighScoreBoardCount) % kHighScoreBoardCount;
+  return static_cast<Randomizer>(i % 6);
+}
+
+PlayMode HighScores::flat_mode(int flat) {
+  const int i = ((flat % kHighScoreBoardCount) + kHighScoreBoardCount) % kHighScoreBoardCount;
+  return static_cast<PlayMode>(i / 6);
+}
+
+Randomizer HighScores::cycle_randomizer(Randomizer r, int delta) {
+  constexpr int n = 6;
+  int cur = static_cast<int>(r);
+  cur = (cur + delta) % n;
+  if (cur < 0) {
+    cur += n;
+  }
+  return static_cast<Randomizer>(cur);
 }
 
 const char* HighScores::token(Randomizer r) {
@@ -120,6 +158,33 @@ const char* HighScores::token(Randomizer r) {
       break;
   }
   return "7bag";
+}
+
+std::string HighScores::section_token(Randomizer r, PlayMode mode) {
+  std::string t = token(r);
+  if (mode != PlayMode::Endless) {
+    t += ':';
+    t += play_mode_token(mode);
+  }
+  return t;
+}
+
+std::optional<PlayMode> HighScores::parse_mode_token(std::string_view t) {
+  std::string lower;
+  lower.reserve(t.size());
+  for (unsigned char c : t) {
+    lower.push_back(static_cast<char>(std::tolower(c)));
+  }
+  if (lower == "endless" || lower.empty()) {
+    return PlayMode::Endless;
+  }
+  if (lower == "marathon") {
+    return PlayMode::Marathon;
+  }
+  if (lower == "sprint") {
+    return PlayMode::Sprint;
+  }
+  return std::nullopt;
 }
 
 std::optional<Randomizer> HighScores::parse_token(std::string_view t) {
@@ -149,14 +214,21 @@ std::optional<Randomizer> HighScores::parse_token(std::string_view t) {
   return std::nullopt;
 }
 
-Randomizer HighScores::cycle(Randomizer r, int delta) {
-  constexpr int n = 6;
-  int cur = static_cast<int>(r);
-  cur = (cur + delta) % n;
-  if (cur < 0) {
-    cur += n;
+std::optional<std::pair<Randomizer, PlayMode>> HighScores::parse_section(std::string_view t) {
+  const auto colon = t.find(':');
+  if (colon == std::string_view::npos) {
+    auto r = parse_token(t);
+    if (!r) {
+      return std::nullopt;
+    }
+    return std::make_pair(*r, PlayMode::Endless);
   }
-  return static_cast<Randomizer>(cur);
+  auto r = parse_token(t.substr(0, colon));
+  auto m = parse_mode_token(t.substr(colon + 1));
+  if (!r || !m) {
+    return std::nullopt;
+  }
+  return std::make_pair(*r, *m);
 }
 
 std::string HighScores::sanitize_name(std::string_view raw, bool empty_as_dashes) {
@@ -187,27 +259,27 @@ std::string HighScores::default_name_from_env() {
   return sanitize_name(user, false);
 }
 
-const std::vector<ScoreEntry>& HighScores::board(Randomizer r) const {
-  return boards_[index_of(r)];
+const std::vector<ScoreEntry>& HighScores::board(Randomizer r, PlayMode mode) const {
+  return boards_[index_of(r, mode)];
 }
 
-std::vector<ScoreEntry>& HighScores::board_mut(Randomizer r) {
-  return boards_[index_of(r)];
+std::vector<ScoreEntry>& HighScores::board_mut(Randomizer r, PlayMode mode) {
+  return boards_[index_of(r, mode)];
 }
 
-void HighScores::sort_board(Randomizer r) {
-  auto& b = board_mut(r);
+void HighScores::sort_board(Randomizer r, PlayMode mode) {
+  auto& b = board_mut(r, mode);
   std::stable_sort(b.begin(), b.end(), entry_better);
 }
 
-void HighScores::truncate_board(Randomizer r) {
-  auto& b = board_mut(r);
+void HighScores::truncate_board(Randomizer r, PlayMode mode) {
+  auto& b = board_mut(r, mode);
   if (static_cast<int>(b.size()) > kHighScoreBoardMax) {
     b.resize(static_cast<std::size_t>(kHighScoreBoardMax));
   }
 }
 
-std::optional<int> HighScores::consider(Randomizer r, ScoreEntry entry) {
+std::optional<int> HighScores::consider(Randomizer r, PlayMode mode, ScoreEntry entry) {
   if (entry.score <= 0) {
     return std::nullopt;
   }
@@ -220,32 +292,33 @@ std::optional<int> HighScores::consider(Randomizer r, ScoreEntry entry) {
   }
 
   const ScoreEntry key = entry;
-  auto& b = board_mut(r);
+  auto& b = board_mut(r, mode);
   if (static_cast<int>(b.size()) >= kHighScoreBoardMax) {
     if (!entry_better(entry, b.back())) {
       return std::nullopt;
     }
   }
   b.push_back(std::move(entry));
-  sort_board(r);
-  truncate_board(r);
+  sort_board(r, mode);
+  truncate_board(r, mode);
 
-  const auto& sorted = board(r);
+  const auto& sorted = board(r, mode);
   for (std::size_t i = 0; i < sorted.size(); ++i) {
     const auto& e = sorted[i];
     if (e.score == key.score && e.lines == key.lines && e.unix_time == key.unix_time &&
-        e.name == key.name && e.level == key.level && e.lines_per_level == key.lines_per_level) {
+        e.name == key.name && e.level == key.level && e.lines_per_level == key.lines_per_level &&
+        e.elapsed_ms == key.elapsed_ms) {
       return static_cast<int>(i) + 1;
     }
   }
   return sorted.empty() ? std::nullopt : std::optional<int>{1};
 }
 
-bool HighScores::set_name(Randomizer r, int rank_1based, std::string_view name) {
+bool HighScores::set_name(Randomizer r, PlayMode mode, int rank_1based, std::string_view name) {
   if (rank_1based < 1) {
     return false;
   }
-  auto& b = board_mut(r);
+  auto& b = board_mut(r, mode);
   const std::size_t i = static_cast<std::size_t>(rank_1based - 1);
   if (i >= b.size()) {
     return false;
@@ -254,11 +327,11 @@ bool HighScores::set_name(Randomizer r, int rank_1based, std::string_view name) 
   return true;
 }
 
-bool HighScores::remove(Randomizer r, int rank_1based) {
+bool HighScores::remove(Randomizer r, PlayMode mode, int rank_1based) {
   if (rank_1based < 1) {
     return false;
   }
-  auto& b = board_mut(r);
+  auto& b = board_mut(r, mode);
   const std::size_t i = static_cast<std::size_t>(rank_1based - 1);
   if (i >= b.size()) {
     return false;
@@ -277,7 +350,7 @@ HighScores HighScores::parse(const std::string& text) {
   HighScores hs;
   std::istringstream in(text);
   std::string line;
-  std::optional<Randomizer> section;
+  std::optional<std::pair<Randomizer, PlayMode>> section;
   while (std::getline(in, line)) {
     const auto hash = line.find('#');
     if (hash != std::string::npos) {
@@ -289,36 +362,46 @@ HighScores HighScores::parse(const std::string& text) {
     }
     if (line.front() == '[' && line.back() == ']' && line.size() >= 3) {
       const auto tok = trim(std::string_view(line).substr(1, line.size() - 2));
-      section = parse_token(tok);
+      section = parse_section(tok);
       continue;
     }
     if (!section.has_value()) {
       continue;
     }
     if (auto e = parse_entry_line(line)) {
-      hs.board_mut(*section).push_back(std::move(*e));
+      hs.board_mut(section->first, section->second).push_back(std::move(*e));
     }
   }
-  for (int i = 0; i < 6; ++i) {
-    const auto r = static_cast<Randomizer>(i);
-    hs.sort_board(r);
-    hs.truncate_board(r);
+  for (int m = 0; m < kPlayModeCount; ++m) {
+    for (int i = 0; i < 6; ++i) {
+      const auto r = static_cast<Randomizer>(i);
+      const auto mode = static_cast<PlayMode>(m);
+      hs.sort_board(r, mode);
+      hs.truncate_board(r, mode);
+    }
   }
   return hs;
 }
 
 std::string HighScores::serialize() const {
   std::ostringstream out;
-  out << "# terminalpolyominos high scores — one board per randomizer (top "
-      << kHighScoreBoardMax << " each)\n"
-      << "# Fields: score level lines lines_per_level name unix_time\n"
-      << "# (randomizer = section name)\n";
-  for (int i = 0; i < 6; ++i) {
-    const auto r = static_cast<Randomizer>(i);
-    out << '\n' << '[' << token(r) << "]\n";
-    for (const auto& e : board(r)) {
-      out << e.score << ' ' << e.level << ' ' << e.lines << ' ' << e.lines_per_level << ' '
-          << sanitize_name(e.name, true) << ' ' << e.unix_time << '\n';
+  out << "# terminalpolyominos high scores — top " << kHighScoreBoardMax
+      << " per randomizer × play mode\n"
+      << "# Fields: score level lines lines_per_level name unix_time [elapsed_ms]\n"
+      << "# Sections: 7bag | 7bag:marathon | 7bag:sprint | …\n";
+  for (int m = 0; m < kPlayModeCount; ++m) {
+    for (int i = 0; i < 6; ++i) {
+      const auto r = static_cast<Randomizer>(i);
+      const auto mode = static_cast<PlayMode>(m);
+      out << '\n' << '[' << section_token(r, mode) << "]\n";
+      for (const auto& e : board(r, mode)) {
+        out << e.score << ' ' << e.level << ' ' << e.lines << ' ' << e.lines_per_level << ' '
+            << sanitize_name(e.name, true) << ' ' << e.unix_time;
+        if (e.elapsed_ms > 0) {
+          out << ' ' << e.elapsed_ms;
+        }
+        out << '\n';
+      }
     }
   }
   return out.str();

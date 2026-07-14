@@ -37,8 +37,8 @@ void Board::set(int x, int y, PieceType type, int color) {
   c.type = type;
   if (color < 0) {
     c.color = 7;
-  } else if (color > 15) {
-    c.color = 7;
+  } else if (color > 255) {
+    c.color = 15;
   } else {
     c.color = static_cast<std::uint8_t>(color);
   }

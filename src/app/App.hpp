@@ -56,6 +56,7 @@ class App {
   bool pending_name_edit_ = false;
   int pending_rank_ = 0;
   Randomizer pending_board_ = Randomizer::SevenBag;
+  PlayMode pending_mode_ = PlayMode::Endless;
   std::string name_buf_{};
   Randomizer scores_view_ = Randomizer::SevenBag;
 };

@@ -141,7 +141,8 @@ std::optional<KeySpec> KeySpec::from_token(std::string_view t) {
 }
 
 Keybinds::Keybinds() {
-  left = {special(Key::Left), letter('a'), letter('h')};
+  // Arrows + wasd-ish letters. Do not claim `h` here — it is the default scores key.
+  left = {special(Key::Left), letter('a')};
   right = {special(Key::Right), letter('d'), letter('l')};
   soft_drop = {special(Key::Down), letter('s'), letter('j')};
   hard_drop = {special(Key::Up)};
@@ -153,6 +154,7 @@ Keybinds::Keybinds() {
   quit = {letter('q')};
   restart = {special(Key::Enter), letter('r')};
   settings = {letter('o')};
+  scores = {letter('h')};
 }
 
 std::optional<Action> Keybinds::action_for(const KeyEvent& ev) const {
@@ -195,6 +197,9 @@ std::optional<Action> Keybinds::action_for(const KeyEvent& ev) const {
   }
   if (any_match(settings, ev)) {
     return Action::Settings;
+  }
+  if (any_match(scores, ev)) {
+    return Action::Scores;
   }
   return std::nullopt;
 }
@@ -275,6 +280,7 @@ void Keybinds::remove_from_others(const std::vector<KeySpec>& claimed,
   maybe_strip(quit);
   maybe_strip(restart);
   maybe_strip(settings);
+  maybe_strip(scores);
 }
 
 Input::Input(InputConfig config) : config_(config) {}
@@ -409,6 +415,7 @@ void Input::on_key(const KeyEvent& ev) {
     case Action::RotateCCW:
     case Action::Hold:
     case Action::Settings:
+    case Action::Scores:
       queue(*action);
       return;
     case Action::Pause:

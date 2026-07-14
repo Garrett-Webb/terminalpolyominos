@@ -36,6 +36,40 @@ enum class Randomizer : std::uint8_t {
   Freak = 5,         // every piece independently generated
 };
 
+enum class PlayMode : std::uint8_t {
+  Endless = 0,
+  Marathon = 1,  // clear 150 lines → win
+  Sprint = 2,    // clear 40 lines → win
+};
+
+inline constexpr int kPlayModeCount = 3;
+inline constexpr int kMarathonLineGoal = 150;
+inline constexpr int kSprintLineGoal = 40;
+
+[[nodiscard]] inline int play_mode_line_goal(PlayMode mode) {
+  switch (mode) {
+    case PlayMode::Marathon:
+      return kMarathonLineGoal;
+    case PlayMode::Sprint:
+      return kSprintLineGoal;
+    case PlayMode::Endless:
+      break;
+  }
+  return 0;
+}
+
+[[nodiscard]] inline const char* play_mode_token(PlayMode mode) {
+  switch (mode) {
+    case PlayMode::Marathon:
+      return "marathon";
+    case PlayMode::Sprint:
+      return "sprint";
+    case PlayMode::Endless:
+      break;
+  }
+  return "endless";
+}
+
 enum class PieceType : std::uint8_t {
   I = 0,
   O,
@@ -94,6 +128,7 @@ enum class Action : std::uint8_t {
   Quit,
   Restart,
   Settings,  // open settings menu (title / pause)
+  Scores,    // open high scores (title)
 };
 
 enum class Phase : std::uint8_t {
@@ -101,12 +136,13 @@ enum class Phase : std::uint8_t {
   Playing,
   Paused,
   GameOver,
+  Finished,  // Marathon / Sprint line goal reached
 };
 
 struct Cell {
   bool filled = false;
   PieceType type = PieceType::I;
-  // ANSI color used when drawing this cell (0–15). Set at lock time.
+  // Palette index used when drawing this cell (0–255). Set at lock time.
   std::uint8_t color = 7;
 };
 
@@ -129,8 +165,11 @@ struct GameConfig {
   // 0 = no hard-drop flash (also forced off when color is disabled).
   int hard_drop_flash_ms = kHardDropFlashMs;
   Randomizer randomizer = Randomizer::SevenBag;
-  // Hash custom/funk/freak shapes onto bright ANSI bg 8–15. Off → white (7).
+  PlayMode play_mode = PlayMode::Endless;
+  // Hash custom/funk/freak shapes onto palette indices. Off → white.
   bool freak_colors = true;
+  // When true, piece colors use 256-color indices; else classic 16-color.
+  bool colors_256 = true;
 };
 
 }  // namespace tp

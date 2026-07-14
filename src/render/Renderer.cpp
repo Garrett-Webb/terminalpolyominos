@@ -1,6 +1,7 @@
 #include "render/Renderer.hpp"
 
 #include "game/Piece.hpp"
+#include "input/Input.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -75,20 +76,20 @@ void Renderer::Canvas::dim() { pen_.dim = true; }
 void Renderer::Canvas::fg(int color) {
   if (color < 0) {
     pen_.fg = -1;
-  } else if (color > 15) {
-    pen_.fg = 7;
+  } else if (color > 255) {
+    pen_.fg = 15;
   } else {
-    pen_.fg = static_cast<std::int8_t>(color);
+    pen_.fg = static_cast<std::int16_t>(color);
   }
 }
 
 void Renderer::Canvas::bg(int color) {
   if (color < 0) {
     pen_.bg = -1;
-  } else if (color > 15) {
-    pen_.bg = 7;
+  } else if (color > 255) {
+    pen_.bg = 15;
   } else {
-    pen_.bg = static_cast<std::int8_t>(color);
+    pen_.bg = static_cast<std::int16_t>(color);
   }
 }
 
@@ -127,29 +128,44 @@ void Renderer::Canvas::emit_sgr(std::string& out, const Glyph& g) const {
   if (g.dim) {
     out.append("\x1b[2m");
   }
-  if (g.fg >= 0) {
-    char tmp[16];
+  // present() calls this; Index 0–255 always via 38;5 when term supports 256.
+  // For simplicity emit 38;5/48;5 whenever index > 15 OR we need a single path;
+  // for 0–15 on 16-color TTYs, classic codes are safer — decided by caller via
+  // whether values >15 appear. Always use 38;5 when fg>15; else dual path:
+  auto append_fg = [&](int c) {
+    char tmp[24];
     int n = 0;
-    if (g.fg >= 8) {
-      n = std::snprintf(tmp, sizeof(tmp), "\x1b[%dm", 90 + (g.fg - 8));
+    // Prefer 38;5 for any index outside classic 16 so 256-palette pieces render.
+    if (c > 15) {
+      n = std::snprintf(tmp, sizeof(tmp), "\x1b[38;5;%dm", c);
+    } else if (c >= 8) {
+      n = std::snprintf(tmp, sizeof(tmp), "\x1b[%dm", 90 + (c - 8));
     } else {
-      n = std::snprintf(tmp, sizeof(tmp), "\x1b[%dm", 30 + g.fg);
+      n = std::snprintf(tmp, sizeof(tmp), "\x1b[%dm", 30 + c);
     }
     if (n > 0) {
       out.append(tmp, static_cast<std::size_t>(n));
     }
+  };
+  auto append_bg = [&](int c) {
+    char tmp[24];
+    int n = 0;
+    if (c > 15) {
+      n = std::snprintf(tmp, sizeof(tmp), "\x1b[48;5;%dm", c);
+    } else if (c >= 8) {
+      n = std::snprintf(tmp, sizeof(tmp), "\x1b[%dm", 100 + (c - 8));
+    } else {
+      n = std::snprintf(tmp, sizeof(tmp), "\x1b[%dm", 40 + c);
+    }
+    if (n > 0) {
+      out.append(tmp, static_cast<std::size_t>(n));
+    }
+  };
+  if (g.fg >= 0) {
+    append_fg(g.fg);
   }
   if (g.bg >= 0) {
-    char tmp[16];
-    int n = 0;
-    if (g.bg >= 8) {
-      n = std::snprintf(tmp, sizeof(tmp), "\x1b[%dm", 100 + (g.bg - 8));
-    } else {
-      n = std::snprintf(tmp, sizeof(tmp), "\x1b[%dm", 40 + g.bg);
-    }
-    if (n > 0) {
-      out.append(tmp, static_cast<std::size_t>(n));
-    }
+    append_bg(g.bg);
   }
 }
 
@@ -319,7 +335,7 @@ void Renderer::cell(Canvas& f, const Layout& lay, int row, int col, bool filled,
     f.cup(row + dy, col);
     if (flash) {
       if (term_.color_enabled()) {
-        f.bg(7);  // white
+        f.bg(flash_white(term_.colors_256()));  // white
         for (int i = 0; i < lay.cell_w; ++i) {
           f.text(' ');
         }
@@ -421,12 +437,13 @@ void Renderer::piece_preview(Canvas& f, const Layout& lay, int row, int col, int
         continue;
       }
       cell(f, lay, row + offset_y + y * lay.cell_h, col + offset_x + x * lay.cell_w, true,
-           piece_color(spec, freak_colors), false);
+           piece_color(spec, freak_colors, term_.colors_256()), false);
     }
   }
 }
 
-void Renderer::draw_title(const HighScores& scores, Randomizer current) {
+void Renderer::draw_title(const HighScores& scores, Randomizer current, PlayMode play_mode,
+                          const Keybinds& keybinds) {
   const TermSize sz = term_.size();
   canvas_.begin(sz);
 
@@ -473,13 +490,22 @@ void Renderer::draw_title(const HighScores& scores, Randomizer current) {
   pad_line(y++, "Lightweight full-featured stacking for terminals");
 
   pad_line(y++, "");
-  pad_line(y++, "Enter / r play   o settings   h scores");
+  {
+    std::string actions;
+    actions += keybinds.format_list(keybinds.restart);
+    actions += " play   ";
+    actions += keybinds.format_list(keybinds.settings);
+    actions += " settings   ";
+    actions += keybinds.format_list(keybinds.scores);
+    actions += " scores";
+    pad_line(y++, actions);
+  }
 
   pad_line(y++, "");
-  const auto& board = scores.board(current);
+  const auto& board = scores.board(current, play_mode);
   {
     std::string hdr = "Top ";
-    hdr += HighScores::token(current);
+    hdr += HighScores::section_token(current, play_mode);
     if (term_.color_enabled()) {
       canvas_.dim();
     }
@@ -528,10 +554,9 @@ void Renderer::draw_scores(const HighScores& scores, Randomizer viewing) {
 
   const int width = std::min(58, std::max(48, sz.cols - 4));
   const int col = std::max(1, (sz.cols - width) / 2 + 1);
-  int row = 2;
+  int row = 1;
 
-  // ASCII only — multi-byte glyphs (e.g. em dash) occupy several canvas cells but one
-  // terminal column, which skews overwrite when cycling board names.
+  // ASCII only — multi-byte glyphs skew overwrite when cycling board names.
   auto pad_line = [&](int r, std::string_view s) {
     canvas_.cup(r, col);
     if (static_cast<int>(s.size()) >= width) {
@@ -563,7 +588,6 @@ void Renderer::draw_scores(const HighScores& scores, Randomizer viewing) {
     }
   };
 
-  // Wipe first with default attrs so shorter titles never leave bold crumbs.
   canvas_.reset();
   pad_line(row, "");
   if (term_.color_enabled()) {
@@ -571,9 +595,8 @@ void Renderer::draw_scores(const HighScores& scores, Randomizer viewing) {
     canvas_.fg(6);
   }
   {
-    // Fixed token field (longest token is "torture") so every board paints the same span.
-    char title[48];
-    std::snprintf(title, sizeof(title), "HIGH SCORES - %-7s", HighScores::token(viewing));
+    char title[56];
+    std::snprintf(title, sizeof(title), "HIGH SCORES - %s", HighScores::token(viewing));
     pad_line(row, title);
   }
   canvas_.reset();
@@ -584,35 +607,60 @@ void Renderer::draw_scores(const HighScores& scores, Randomizer viewing) {
   if (term_.color_enabled()) {
     canvas_.dim();
   }
-  pad_line(row, "Left/Right cycle board     Esc / q back");
-  canvas_.reset();
-  row += 2;
-
-  canvas_.reset();
-  pad_line(row, "");
-  if (term_.color_enabled()) {
-    canvas_.dim();
-  }
-  pad_line(row, " #  Name      Score  Lv  Lines  Date");
+  pad_line(row, "Left/Right cycle randomizer     Esc / q back");
   canvas_.reset();
   ++row;
 
-  const auto& board = scores.board(viewing);
-  for (int i = 0; i < kHighScoreBoardMax; ++i) {
-    canvas_.reset();
-    if (i < static_cast<int>(board.size())) {
-      const auto& e = board[static_cast<std::size_t>(i)];
-      char date[16];
-      format_date(e.unix_time, date, sizeof(date));
-      char line[72];
-      std::snprintf(line, sizeof(line), "%2d  %-8s %6d %3d %6d  %s", i + 1, e.name.c_str(),
-                    e.score, e.level, e.lines, date);
-      pad_line(row + i, line);
-    } else if (i == 0 && board.empty()) {
-      pad_line(row + i, "  (empty)");
-    } else {
-      pad_line(row + i, "");
+  static constexpr PlayMode kModes[] = {PlayMode::Endless, PlayMode::Marathon, PlayMode::Sprint};
+  for (PlayMode mode : kModes) {
+    if (row >= sz.rows) {
+      break;
     }
+    pad_line(row++, "");
+    canvas_.reset();
+    pad_line(row, "");
+    if (term_.color_enabled()) {
+      canvas_.bold();
+      canvas_.fg(3);
+    }
+    {
+      char hdr[40];
+      std::snprintf(hdr, sizeof(hdr), "%s", play_mode_token(mode));
+      pad_line(row, hdr);
+    }
+    canvas_.reset();
+    ++row;
+
+    canvas_.reset();
+    pad_line(row, "");
+    if (term_.color_enabled()) {
+      canvas_.dim();
+    }
+    pad_line(row, " #  Name      Score  Lv  Lines  Date");
+    canvas_.reset();
+    ++row;
+
+    const auto& board = scores.board(viewing, mode);
+    for (int i = 0; i < kHighScoreBoardMax; ++i) {
+      if (row + i > sz.rows) {
+        break;
+      }
+      canvas_.reset();
+      if (i < static_cast<int>(board.size())) {
+        const auto& e = board[static_cast<std::size_t>(i)];
+        char date[16];
+        format_date(e.unix_time, date, sizeof(date));
+        char line[72];
+        std::snprintf(line, sizeof(line), "%2d  %-8s %6d %3d %6d  %s", i + 1, e.name.c_str(),
+                      e.score, e.level, e.lines, date);
+        pad_line(row + i, line);
+      } else if (i == 0 && board.empty()) {
+        pad_line(row + i, "  (none)");
+      } else {
+        pad_line(row + i, "");
+      }
+    }
+    row += kHighScoreBoardMax;
   }
 
   canvas_.present(term_);
@@ -632,8 +680,9 @@ void Renderer::draw_too_small() {
   canvas_.present(term_);
 }
 
-void Renderer::draw_game(const GameState& state, bool freak_colors,
+void Renderer::draw_game(const GameState& state, const GameConfig& config,
                          const GameOverExtras* game_over) {
+  const bool freak_colors = config.freak_colors;
   const TermSize sz = term_.size();
   const Layout lay = compute_layout(sz);
   canvas_.begin(sz);
@@ -678,7 +727,17 @@ void Renderer::draw_game(const GameState& state, bool freak_colors,
   };
   draw_stat(stats_row, "Score ", state.score);
   draw_stat(stats_row + 1, "Level ", state.level);
-  draw_stat(stats_row + 2, "Lines ", state.lines);
+  canvas_.cup(stats_row + 2, hold_content_col);
+  canvas_.text("Lines ");
+  canvas_.number(state.lines);
+  const int line_goal = play_mode_line_goal(config.play_mode);
+  if (line_goal > 0) {
+    canvas_.text('/');
+    canvas_.number(line_goal);
+  }
+  for (int i = 0; i < 6; ++i) {
+    canvas_.text(' ');
+  }
   canvas_.cup(stats_row + 3, hold_content_col);
   if (state.combo > 0) {
     canvas_.text("Combo ");
@@ -728,7 +787,7 @@ void Renderer::draw_game(const GameState& state, bool freak_colors,
     Offset cells[kMaxPieceCells];
     int n = 0;
     piece_cells(state.ghost.spec, state.ghost.rotation, cells, n);
-    ghost_color = piece_color(state.ghost.spec, freak_colors);
+    ghost_color = piece_color(state.ghost.spec, freak_colors, term_.colors_256());
     for (int i = 0; i < n; ++i) {
       const int x = state.ghost.x + cells[i].x;
       const int y = state.ghost.y + cells[i].y;
@@ -741,7 +800,7 @@ void Renderer::draw_game(const GameState& state, bool freak_colors,
     Offset cells[kMaxPieceCells];
     int n = 0;
     piece_cells(state.active.spec, state.active.rotation, cells, n);
-    active_color = piece_color(state.active.spec, freak_colors);
+    active_color = piece_color(state.active.spec, freak_colors, term_.colors_256());
     for (int i = 0; i < n; ++i) {
       const int x = state.active.x + cells[i].x;
       const int y = state.active.y + cells[i].y;
@@ -837,13 +896,34 @@ void Renderer::draw_game(const GameState& state, bool freak_colors,
   if (state.phase == Phase::Paused) {
     center_text(overlay_row, "PAUSED", 3, true);
     center_text(overlay_row + 1, "p/esc resume  o settings  q quit");
-  } else if (state.phase == Phase::GameOver) {
+  } else if (state.phase == Phase::GameOver || state.phase == Phase::Finished) {
     int r = overlay_row;
-    center_text(r++, "GAME OVER", 1, true);
+    if (state.phase == Phase::Finished) {
+      center_text(r++, "CLEARED", 2, true);
+      std::string mode_line;
+      if (config.play_mode == PlayMode::Marathon) {
+        mode_line = "Marathon";
+      } else if (config.play_mode == PlayMode::Sprint) {
+        mode_line = "Sprint";
+      } else {
+        mode_line = play_mode_token(config.play_mode);
+      }
+      center_text(r++, mode_line, 3, false);
+    } else {
+      center_text(r++, "GAME OVER", 1, true);
+    }
     clear_row(r++);
     center_text(r++, "Score  " + std::to_string(state.score));
     center_text(r++, "Level  " + std::to_string(state.level));
     center_text(r++, "Lines  " + std::to_string(state.lines));
+    if (state.phase == Phase::Finished &&
+        (config.play_mode == PlayMode::Sprint || config.play_mode == PlayMode::Marathon)) {
+      const int sec = state.play_ms / 1000;
+      const int ms = state.play_ms % 1000;
+      char time_buf[32];
+      std::snprintf(time_buf, sizeof(time_buf), "Time   %d.%03ds", sec, ms);
+      center_text(r++, time_buf);
+    }
     center_text(r++, "Combo  " + std::to_string(state.combo) +
                          (state.b2b_ready ? "   B2B ready" : ""));
     clear_row(r++);
@@ -868,7 +948,7 @@ void Renderer::draw_game(const GameState& state, bool freak_colors,
         canvas_.cup(row, col);
         if (term_.color_enabled()) {
           canvas_.bold();
-          canvas_.fg(piece_color(t));
+          canvas_.fg(piece_color(t, term_.colors_256()));
         }
         canvas_.text(name);
         canvas_.reset();
@@ -887,7 +967,7 @@ void Renderer::draw_game(const GameState& state, bool freak_colors,
       std::string banner = "NEW HIGH SCORE  #";
       banner += std::to_string(game_over->rank);
       banner += "  (";
-      banner += HighScores::token(game_over->board);
+      banner += HighScores::section_token(game_over->board, game_over->mode);
       banner += ")";
       center_text(r++, banner, 3, true);
       if (game_over->editing_name) {
@@ -901,7 +981,7 @@ void Renderer::draw_game(const GameState& state, bool freak_colors,
     }
     center_text(r++, game_over != nullptr && game_over->editing_name
                          ? "(save or discard score to continue)"
-                         : "r/Enter retry  q quit");
+                         : "Enter retry  q quit");
   }
 
   constexpr char kHint[] = "z/x rotate  c hold  space sonic  up hard  p pause  o settings  q quit";
@@ -935,6 +1015,8 @@ const char* settings_label(SettingsItem item) {
       return "Next queue";
     case SettingsItem::Randomizer:
       return "Randomizer";
+    case SettingsItem::PlayMode:
+      return "Play mode";
     case SettingsItem::FreakColors:
       return "Freak colors";
     case SettingsItem::KeyLeft:
@@ -961,6 +1043,8 @@ const char* settings_label(SettingsItem item) {
       return "Key restart";
     case SettingsItem::KeySettings:
       return "Key settings";
+    case SettingsItem::KeyScores:
+      return "Key scores";
     case SettingsItem::ClearScores:
       return "Clear high scores";
     case SettingsItem::Save:
@@ -1006,6 +1090,16 @@ std::string settings_value(const Settings& s, SettingsItem item) {
           break;
       }
       return "7-bag";
+    case SettingsItem::PlayMode:
+      switch (s.game.play_mode) {
+        case PlayMode::Marathon:
+          return "marathon";
+        case PlayMode::Sprint:
+          return "sprint";
+        case PlayMode::Endless:
+          break;
+      }
+      return "endless";
     case SettingsItem::FreakColors:
       return s.game.freak_colors ? "on" : "off";
     case SettingsItem::KeyLeft:
@@ -1032,6 +1126,8 @@ std::string settings_value(const Settings& s, SettingsItem item) {
       return k.format_list(k.restart);
     case SettingsItem::KeySettings:
       return k.format_list(k.settings);
+    case SettingsItem::KeyScores:
+      return k.format_list(k.scores);
     case SettingsItem::ClearScores:
     case SettingsItem::Save:
     case SettingsItem::Reset:
@@ -1145,7 +1241,7 @@ void Renderer::draw_settings(const SettingsMenuView& menu) {
       canvas_.cup(y, val_col);
       const int max_v = std::max(8, col + width - val_col);
       if (sel && menu.capturing && item >= SettingsItem::KeyLeft &&
-          item <= SettingsItem::KeySettings) {
+          item <= SettingsItem::KeyScores) {
         if (term_.color_enabled()) {
           canvas_.fg(2);
         }

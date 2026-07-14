@@ -11,6 +11,7 @@ namespace {
 
 GameConfig gameplay_config(const Settings& settings, const Terminal& term) {
   GameConfig cfg = settings.game;
+  cfg.colors_256 = term.colors_256();
   if (!term.color_enabled()) {
     cfg.hard_drop_flash_ms = 0;
   }
@@ -121,9 +122,11 @@ void App::on_game_over_edge() {
   e.lines_per_level = game_.config().lines_per_level;
   e.name = HighScores::default_name_from_env();
   e.unix_time = static_cast<std::int64_t>(std::time(nullptr));
+  e.elapsed_ms = game_.state().play_ms;
 
   pending_board_ = game_.config().randomizer;
-  const auto rank = scores_.consider(pending_board_, e);
+  pending_mode_ = game_.config().play_mode;
+  const auto rank = scores_.consider(pending_board_, pending_mode_, e);
   if (!rank.has_value()) {
     pending_name_edit_ = false;
     pending_rank_ = 0;
@@ -145,14 +148,14 @@ void App::handle_name_key(const KeyEvent& ev) {
   };
 
   if (ev.key == Key::Esc) {
-    (void)scores_.remove(pending_board_, pending_rank_);
+    (void)scores_.remove(pending_board_, pending_mode_, pending_rank_);
     finish_edit();
     return;
   }
   if (ev.key == Key::Enter) {
     const std::string saved =
         name_buf_.empty() ? std::string("---") : HighScores::sanitize_name(name_buf_, true);
-    (void)scores_.set_name(pending_board_, pending_rank_, saved);
+    (void)scores_.set_name(pending_board_, pending_mode_, pending_rank_, saved);
     (void)scores_.save();
     finish_edit();
     return;
@@ -180,13 +183,13 @@ void App::handle_scores_key(const KeyEvent& ev) {
     return;
   }
   if (ev.key == Key::Left) {
-    scores_view_ = HighScores::cycle(scores_view_, -1);
+    scores_view_ = HighScores::cycle_randomizer(scores_view_, -1);
     renderer_.invalidate();
     ui_dirty_ = true;
     return;
   }
   if (ev.key == Key::Right) {
-    scores_view_ = HighScores::cycle(scores_view_, 1);
+    scores_view_ = HighScores::cycle_randomizer(scores_view_, 1);
     renderer_.invalidate();
     ui_dirty_ = true;
     return;
@@ -196,11 +199,11 @@ void App::handle_scores_key(const KeyEvent& ev) {
     if (c == 'q') {
       close_scores();
     } else if (c == 'h' || c == '[') {
-      scores_view_ = HighScores::cycle(scores_view_, -1);
+      scores_view_ = HighScores::cycle_randomizer(scores_view_, -1);
       renderer_.invalidate();
       ui_dirty_ = true;
     } else if (c == 'l' || c == ']') {
-      scores_view_ = HighScores::cycle(scores_view_, 1);
+      scores_view_ = HighScores::cycle_randomizer(scores_view_, 1);
       renderer_.invalidate();
       ui_dirty_ = true;
     }
@@ -224,7 +227,8 @@ void App::handle_action(Action action) {
       quit_ = true;
       return;
     }
-    if (game_.state().phase == Phase::Paused || game_.state().phase == Phase::GameOver) {
+    if (game_.state().phase == Phase::Paused || game_.state().phase == Phase::GameOver ||
+        game_.state().phase == Phase::Finished) {
       quit_ = true;
       return;
     }
@@ -234,6 +238,8 @@ void App::handle_action(Action action) {
   if (screen_ == Screen::Title) {
     if (action == Action::Restart) {
       start_game();
+    } else if (action == Action::Scores) {
+      open_scores();
     }
     return;
   }
@@ -242,7 +248,7 @@ void App::handle_action(Action action) {
     return;
   }
 
-  if (game_.state().phase == Phase::GameOver) {
+  if (game_.state().phase == Phase::GameOver || game_.state().phase == Phase::Finished) {
     if (action == Action::Restart) {
       start_game();
     }
@@ -299,12 +305,17 @@ void App::pump_keys() {
       return;
     }
 
-    if (screen_ == Screen::Title && ev.key == Key::Char) {
-      const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ev.ch)));
-      if (c == 'h') {
-        open_scores();
-        continue;
-      }
+    // Title / game-over: Enter (and Space on title) always start/retry before keybinds.
+    if (screen_ == Screen::Title &&
+        (ev.key == Key::Enter || ev.key == Key::Space)) {
+      start_game();
+      continue;
+    }
+    if (screen_ == Screen::Playing &&
+        (game_.state().phase == Phase::GameOver || game_.state().phase == Phase::Finished) &&
+        ev.key == Key::Enter) {
+      start_game();
+      continue;
     }
 
     input_.on_key(ev);
@@ -378,7 +389,8 @@ int App::run() {
 
     if (screen_ == Screen::Playing) {
       const Phase ph = game_.state().phase;
-      if (ph == Phase::GameOver && last_phase_ != Phase::GameOver) {
+      if ((ph == Phase::GameOver || ph == Phase::Finished) &&
+          last_phase_ != Phase::GameOver && last_phase_ != Phase::Finished) {
         on_game_over_edge();
         need_draw = true;
       }
@@ -389,7 +401,8 @@ int App::run() {
       if (!size_ok) {
         renderer_.draw_too_small();
       } else if (screen_ == Screen::Title) {
-        renderer_.draw_title(scores_, settings_.game.randomizer);
+        renderer_.draw_title(scores_, settings_.game.randomizer, settings_.game.play_mode,
+                             settings_.input.keys);
       } else if (screen_ == Screen::Settings) {
         renderer_.draw_settings(menu_.view());
       } else if (screen_ == Screen::Scores) {
@@ -397,15 +410,17 @@ int App::run() {
       } else {
         GameOverExtras extras;
         const GameOverExtras* extras_ptr = nullptr;
-        if (game_.state().phase == Phase::GameOver && pending_rank_ > 0) {
+        const Phase ph = game_.state().phase;
+        if ((ph == Phase::GameOver || ph == Phase::Finished) && pending_rank_ > 0) {
           extras.is_high_score = true;
           extras.rank = pending_rank_;
           extras.editing_name = pending_name_edit_;
           extras.name_buf = name_buf_;
           extras.board = pending_board_;
+          extras.mode = pending_mode_;
           extras_ptr = &extras;
         }
-        renderer_.draw_game(game_.state(), game_.config().freak_colors, extras_ptr);
+        renderer_.draw_game(game_.state(), game_.config(), extras_ptr);
       }
       ui_dirty_ = false;
     }

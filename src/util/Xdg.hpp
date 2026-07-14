@@ -6,7 +6,7 @@ namespace tp {
 
 // XDG Base Directory helpers (with classic fallbacks).
 // Config dir: $XDG_CONFIG_HOME/tpoly or ~/.config/tpoly
-// Data dir:   $XDG_DATA_HOME/tpoly or ~/.local/share/tpoly  (scores later)
+// Data dir:   $XDG_DATA_HOME/tpoly or ~/.local/share/tpoly
 
 [[nodiscard]] std::string xdg_config_home();
 [[nodiscard]] std::string xdg_data_home();
@@ -16,6 +16,9 @@ namespace tp {
 
 // Preferred settings path: <config_dir>/.tpolyrc
 [[nodiscard]] std::string tpoly_rc_path();
+
+// Preferred high-scores path: <data_dir>/scores
+[[nodiscard]] std::string tpoly_scores_path();
 
 // Legacy: ~/.tpolyrc (read fallback only)
 [[nodiscard]] std::string tpoly_rc_legacy_path();

@@ -3,6 +3,7 @@
 #include "app/SettingsMenu.hpp"
 #include "game/Game.hpp"
 #include "terminal/Terminal.hpp"
+#include "util/HighScores.hpp"
 
 #include <cstdint>
 #include <string>
@@ -30,13 +31,23 @@ struct Layout {
   int hint_row = 1;
 };
 
+struct GameOverExtras {
+  bool is_high_score = false;
+  int rank = 0;
+  bool editing_name = false;
+  std::string_view name_buf{};
+  Randomizer board = Randomizer::SevenBag;
+};
+
 class Renderer {
  public:
   explicit Renderer(Terminal& term);
 
-  void draw_title();
+  void draw_title(const HighScores& scores, Randomizer current);
+  void draw_scores(const HighScores& scores, Randomizer viewing);
   void draw_too_small();
-  void draw_game(const GameState& state, bool freak_colors = true);
+  void draw_game(const GameState& state, bool freak_colors = true,
+                 const GameOverExtras* game_over = nullptr);
   void draw_settings(const SettingsMenuView& menu);
 
   // Next draw starts from a blank grid (needed when switching screens that
@@ -59,7 +70,6 @@ class Renderer {
     }
   };
 
-  // Paints into a terminal-sized glyph grid, then presents only diffs.
   class Canvas {
    public:
     void begin(TermSize sz);
@@ -75,7 +85,6 @@ class Renderer {
     void number(int value);
     void present(Terminal& term);
 
-    // True after a present that wrote nothing (callers may skip work next time).
     [[nodiscard]] bool last_present_was_empty() const { return last_empty_; }
 
    private:
@@ -97,7 +106,6 @@ class Renderer {
 
   void cell(Canvas& f, const Layout& lay, int row, int col, bool filled, int color, bool ghost,
             bool flash = false);
-  // Draws a piece centered in a panel of width panel_w (columns) and height 4 cells.
   void piece_preview(Canvas& f, const Layout& lay, int row, int col, int panel_w,
                      const PieceSpec& spec, bool freak_colors);
   void hline(Canvas& f, int row, int col, int inner_width, char edge, char fill);

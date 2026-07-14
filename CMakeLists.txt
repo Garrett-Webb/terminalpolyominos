@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(terminalpolyominos
-  VERSION 0.2.7
-  DESCRIPTION "Lightweight colored polyomino stacking game for Unix terminals"
+  VERSION 0.3.0
+  DESCRIPTION "Lightweight full-featured polyomino stacking game for Unix terminals"
   LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -27,6 +27,7 @@ add_executable(terminalpolyominos
   src/render/Renderer.cpp
   src/util/Xdg.cpp
   src/util/Settings.cpp
+  src/util/HighScores.cpp
   src/app/SettingsMenu.cpp
   src/app/App.cpp)
 target_include_directories(terminalpolyominos PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
@@ -82,5 +83,15 @@ target_include_directories(tp_settings_menu_tests PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/tests")
 target_compile_options(tp_settings_menu_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME tp_settings_menu_tests COMMAND tp_settings_menu_tests)
+
+add_executable(tp_scores_tests
+  tests/test_scores.cpp
+  src/util/HighScores.cpp
+  src/util/Xdg.cpp)
+target_include_directories(tp_scores_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+target_compile_options(tp_scores_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME tp_scores_tests COMMAND tp_scores_tests)
 
 message(STATUS "terminalpolyominos ${PROJECT_VERSION} (C++${CMAKE_CXX_STANDARD})")

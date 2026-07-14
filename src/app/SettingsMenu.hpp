@@ -33,6 +33,7 @@ enum class SettingsItem : std::uint8_t {
   KeyQuit,
   KeyRestart,
   KeySettings,
+  ClearScores,
   Save,
   Reset,
   Back,
@@ -46,14 +47,16 @@ struct SettingsMenuView {
   int selected = 0;
   int scroll = 0;
   bool capturing = false;
+  bool confirming_clear = false;
   bool dirty = false;
   std::string_view status{};
+  std::string_view clear_buf{};
 };
 
 // Pure menu state: browse / adjust / rebind / save commands.
 class SettingsMenu {
  public:
-  enum class Result : std::uint8_t { None, Saved, Back };
+  enum class Result : std::uint8_t { None, Saved, Back, ClearedScores };
 
   void open(const Settings& current);
   void on_key(const KeyEvent& ev);
@@ -68,6 +71,7 @@ class SettingsMenu {
   void adjust(int delta);
   void activate();
   void capture(const KeyEvent& ev);
+  void capture_clear(const KeyEvent& ev);
   void reset_defaults();
   void mark_dirty();
   [[nodiscard]] static bool is_timing(SettingsItem item);
@@ -78,9 +82,11 @@ class SettingsMenu {
   int selected_ = 0;
   int scroll_ = 0;
   bool capturing_ = false;
+  bool confirming_clear_ = false;
   bool dirty_ = false;
   Result result_ = Result::None;
   std::string status_{};
+  std::string clear_buf_{};
 };
 
 }  // namespace tp

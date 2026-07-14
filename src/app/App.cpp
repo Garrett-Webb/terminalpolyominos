@@ -1,6 +1,8 @@
 #include "app/App.hpp"
 
 #include <chrono>
+#include <cctype>
+#include <ctime>
 #include <random>
 #include <thread>
 
@@ -9,7 +11,6 @@ namespace {
 
 GameConfig gameplay_config(const Settings& settings, const Terminal& term) {
   GameConfig cfg = settings.game;
-  // Hard-drop flash is white bg only; skip entirely without color (no '#' spam).
   if (!term.color_enabled()) {
     cfg.hard_drop_flash_ms = 0;
   }
@@ -23,7 +24,10 @@ App::App(Terminal& term)
       settings_(Settings::load_or_create()),
       input_(settings_.input),
       renderer_(term),
-      game_(gameplay_config(settings_, term)) {}
+      game_(gameplay_config(settings_, term)) {
+  (void)scores_.load();
+  scores_view_ = settings_.game.randomizer;
+}
 
 std::uint64_t App::fresh_seed() const {
   std::random_device rd;
@@ -62,6 +66,21 @@ void App::close_settings() {
   ui_dirty_ = true;
 }
 
+void App::open_scores() {
+  scores_view_ = settings_.game.randomizer;
+  screen_ = Screen::Scores;
+  input_.reset();
+  renderer_.invalidate();
+  ui_dirty_ = true;
+}
+
+void App::close_scores() {
+  screen_ = Screen::Title;
+  input_.reset();
+  renderer_.invalidate();
+  ui_dirty_ = true;
+}
+
 void App::handle_settings_result() {
   switch (menu_.take_result()) {
     case SettingsMenu::Result::None:
@@ -74,18 +93,125 @@ void App::handle_settings_result() {
     case SettingsMenu::Result::Back:
       close_settings();
       break;
+    case SettingsMenu::Result::ClearedScores:
+      scores_.clear_all();
+      (void)scores_.save();
+      ui_dirty_ = true;
+      break;
   }
 }
 
 void App::start_game() {
   input_.reset();
   game_.reset(fresh_seed());
+  last_phase_ = game_.state().phase;
+  pending_name_edit_ = false;
+  pending_rank_ = 0;
+  name_buf_.clear();
   screen_ = Screen::Playing;
   renderer_.invalidate();
   ui_dirty_ = true;
 }
 
+void App::on_game_over_edge() {
+  ScoreEntry e;
+  e.score = game_.state().score;
+  e.level = game_.state().level;
+  e.lines = game_.state().lines;
+  e.lines_per_level = game_.config().lines_per_level;
+  e.name = HighScores::default_name_from_env();
+  e.unix_time = static_cast<std::int64_t>(std::time(nullptr));
+
+  pending_board_ = game_.config().randomizer;
+  const auto rank = scores_.consider(pending_board_, e);
+  if (!rank.has_value()) {
+    pending_name_edit_ = false;
+    pending_rank_ = 0;
+    return;
+  }
+  // Keep in memory only until the player confirms (Enter) or discards (Esc).
+  pending_rank_ = *rank;
+  pending_name_edit_ = true;
+  name_buf_ = HighScores::default_name_from_env();
+  ui_dirty_ = true;
+}
+
+void App::handle_name_key(const KeyEvent& ev) {
+  auto finish_edit = [&] {
+    pending_name_edit_ = false;
+    pending_rank_ = 0;
+    name_buf_.clear();
+    ui_dirty_ = true;
+  };
+
+  if (ev.key == Key::Esc) {
+    (void)scores_.remove(pending_board_, pending_rank_);
+    finish_edit();
+    return;
+  }
+  if (ev.key == Key::Enter) {
+    const std::string saved =
+        name_buf_.empty() ? std::string("---") : HighScores::sanitize_name(name_buf_, true);
+    (void)scores_.set_name(pending_board_, pending_rank_, saved);
+    (void)scores_.save();
+    finish_edit();
+    return;
+  }
+  if (ev.key == Key::Backspace) {
+    if (!name_buf_.empty()) {
+      name_buf_.pop_back();
+      ui_dirty_ = true;
+    }
+    return;
+  }
+  if (ev.key == Key::Char) {
+    const unsigned char uc = ev.ch;
+    if ((std::isalnum(uc) || uc == '_' || uc == '-') &&
+        name_buf_.size() < static_cast<std::size_t>(kHighScoreNameMax)) {
+      name_buf_.push_back(static_cast<char>(uc));
+      ui_dirty_ = true;
+    }
+  }
+}
+
+void App::handle_scores_key(const KeyEvent& ev) {
+  if (ev.key == Key::Esc) {
+    close_scores();
+    return;
+  }
+  if (ev.key == Key::Left) {
+    scores_view_ = HighScores::cycle(scores_view_, -1);
+    renderer_.invalidate();
+    ui_dirty_ = true;
+    return;
+  }
+  if (ev.key == Key::Right) {
+    scores_view_ = HighScores::cycle(scores_view_, 1);
+    renderer_.invalidate();
+    ui_dirty_ = true;
+    return;
+  }
+  if (ev.key == Key::Char) {
+    const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ev.ch)));
+    if (c == 'q') {
+      close_scores();
+    } else if (c == 'h' || c == '[') {
+      scores_view_ = HighScores::cycle(scores_view_, -1);
+      renderer_.invalidate();
+      ui_dirty_ = true;
+    } else if (c == 'l' || c == ']') {
+      scores_view_ = HighScores::cycle(scores_view_, 1);
+      renderer_.invalidate();
+      ui_dirty_ = true;
+    }
+  }
+}
+
 void App::handle_action(Action action) {
+  if (pending_name_edit_) {
+    return;
+  }
+
   if (action == Action::Settings) {
     if (screen_ == Screen::Title || screen_ == Screen::Playing) {
       open_settings();
@@ -94,7 +220,7 @@ void App::handle_action(Action action) {
   }
 
   if (action == Action::Quit) {
-    if (screen_ == Screen::Title) {
+    if (screen_ == Screen::Title || screen_ == Screen::Scores) {
       quit_ = true;
       return;
     }
@@ -109,6 +235,10 @@ void App::handle_action(Action action) {
     if (action == Action::Restart) {
       start_game();
     }
+    return;
+  }
+
+  if (screen_ == Screen::Scores) {
     return;
   }
 
@@ -154,10 +284,29 @@ void App::pump_keys() {
       continue;
     }
 
+    if (pending_name_edit_ && screen_ == Screen::Playing) {
+      handle_name_key(ev);
+      continue;
+    }
+
+    if (screen_ == Screen::Scores) {
+      handle_scores_key(ev);
+      continue;
+    }
+
     if (screen_ == Screen::Title && ev.key == Key::Esc) {
       quit_ = true;
       return;
     }
+
+    if (screen_ == Screen::Title && ev.key == Key::Char) {
+      const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ev.ch)));
+      if (c == 'h') {
+        open_scores();
+        continue;
+      }
+    }
+
     input_.on_key(ev);
     for (Action action : input_.drain()) {
       handle_action(action);
@@ -175,6 +324,7 @@ int App::run() {
   using clock = std::chrono::steady_clock;
   auto prev = clock::now();
   last_size_ = term_.size();
+  last_phase_ = game_.state().phase;
 
   constexpr int kFrameMs = 33;
   constexpr int kIdleFrameMs = 100;
@@ -193,7 +343,7 @@ int App::run() {
       elapsed_ms = 50;
     }
 
-    if (screen_ != Screen::Settings) {
+    if (screen_ != Screen::Settings && screen_ != Screen::Scores && !pending_name_edit_) {
       input_.tick(elapsed_ms);
       for (Action action : input_.drain()) {
         handle_action(action);
@@ -214,7 +364,8 @@ int App::run() {
 
     if (!size_ok) {
       need_draw = true;
-    } else if (screen_ == Screen::Title || screen_ == Screen::Settings) {
+    } else if (screen_ == Screen::Title || screen_ == Screen::Settings ||
+               screen_ == Screen::Scores) {
       // Static until interaction dirties UI.
     } else {
       if (game_.state().phase == Phase::Playing && elapsed_ms > 0) {
@@ -225,21 +376,44 @@ int App::run() {
       }
     }
 
+    if (screen_ == Screen::Playing) {
+      const Phase ph = game_.state().phase;
+      if (ph == Phase::GameOver && last_phase_ != Phase::GameOver) {
+        on_game_over_edge();
+        need_draw = true;
+      }
+      last_phase_ = ph;
+    }
+
     if (need_draw) {
       if (!size_ok) {
         renderer_.draw_too_small();
       } else if (screen_ == Screen::Title) {
-        renderer_.draw_title();
+        renderer_.draw_title(scores_, settings_.game.randomizer);
       } else if (screen_ == Screen::Settings) {
         renderer_.draw_settings(menu_.view());
+      } else if (screen_ == Screen::Scores) {
+        renderer_.draw_scores(scores_, scores_view_);
       } else {
-        renderer_.draw_game(game_.state(), game_.config().freak_colors);
+        GameOverExtras extras;
+        const GameOverExtras* extras_ptr = nullptr;
+        if (game_.state().phase == Phase::GameOver && pending_rank_ > 0) {
+          extras.is_high_score = true;
+          extras.rank = pending_rank_;
+          extras.editing_name = pending_name_edit_;
+          extras.name_buf = name_buf_;
+          extras.board = pending_board_;
+          extras_ptr = &extras;
+        }
+        renderer_.draw_game(game_.state(), game_.config().freak_colors, extras_ptr);
       }
       ui_dirty_ = false;
     }
 
-    const bool idle = screen_ == Screen::Title || screen_ == Screen::Settings || !size_ok ||
-                      (screen_ == Screen::Playing && game_.state().phase != Phase::Playing);
+    const bool idle = screen_ == Screen::Title || screen_ == Screen::Settings ||
+                      screen_ == Screen::Scores || !size_ok ||
+                      (screen_ == Screen::Playing && game_.state().phase != Phase::Playing) ||
+                      pending_name_edit_;
     const int target_ms = idle ? kIdleFrameMs : kFrameMs;
 
     const auto frame_end = clock::now();

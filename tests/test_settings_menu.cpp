@@ -59,6 +59,31 @@ void test_toggle_freak_colors() {
   TP_CHECK(menu.draft().game.freak_colors);
 }
 
+void test_clear_scores_confirm() {
+  tp::SettingsMenu menu;
+  menu.open(tp::Settings{});
+  for (int i = 0; i < static_cast<int>(tp::SettingsItem::ClearScores); ++i) {
+    menu.on_key(tp::KeyEvent{tp::Key::Down, 0});
+  }
+  menu.on_key(tp::KeyEvent{tp::Key::Enter, 0});
+  TP_CHECK(menu.view().confirming_clear);
+  menu.on_key(tp::KeyEvent{tp::Key::Char, 'y'});
+  menu.on_key(tp::KeyEvent{tp::Key::Char, 'e'});
+  menu.on_key(tp::KeyEvent{tp::Key::Char, 's'});
+  menu.on_key(tp::KeyEvent{tp::Key::Enter, 0});
+  TP_CHECK(menu.take_result() == tp::SettingsMenu::Result::ClearedScores);
+  TP_CHECK(!menu.view().confirming_clear);
+
+  menu.open(tp::Settings{});
+  for (int i = 0; i < static_cast<int>(tp::SettingsItem::ClearScores); ++i) {
+    menu.on_key(tp::KeyEvent{tp::Key::Down, 0});
+  }
+  menu.on_key(tp::KeyEvent{tp::Key::Enter, 0});
+  menu.on_key(tp::KeyEvent{tp::Key::Char, 'n'});
+  menu.on_key(tp::KeyEvent{tp::Key::Enter, 0});
+  TP_CHECK(menu.take_result() == tp::SettingsMenu::Result::None);
+}
+
 }  // namespace
 
 int main() {
@@ -66,5 +91,6 @@ int main() {
   test_save_and_back();
   test_rebind();
   test_toggle_freak_colors();
+  test_clear_scores_confirm();
   return tp::test::summary("tp_settings_menu_tests");
 }

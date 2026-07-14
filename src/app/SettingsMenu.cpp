@@ -71,9 +71,11 @@ void SettingsMenu::open(const Settings& current) {
   selected_ = 0;
   scroll_ = 0;
   capturing_ = false;
+  confirming_clear_ = false;
   dirty_ = false;
   result_ = Result::None;
   status_.clear();
+  clear_buf_.clear();
 }
 
 SettingsMenu::Result SettingsMenu::take_result() {
@@ -83,7 +85,8 @@ SettingsMenu::Result SettingsMenu::take_result() {
 }
 
 SettingsMenuView SettingsMenu::view() const {
-  return SettingsMenuView{draft_, selected_, scroll_, capturing_, dirty_, status_};
+  return SettingsMenuView{draft_,     selected_, scroll_, capturing_, confirming_clear_,
+                          dirty_,     status_,   clear_buf_};
 }
 
 bool SettingsMenu::is_timing(SettingsItem item) {
@@ -196,6 +199,12 @@ void SettingsMenu::activate() {
     status_ = "Press a key...  Esc cancel";
     return;
   }
+  if (item == SettingsItem::ClearScores) {
+    confirming_clear_ = true;
+    clear_buf_.clear();
+    status_ = "Type yes to clear ALL scores - Esc cancel";
+    return;
+  }
   if (item == SettingsItem::Save) {
     result_ = Result::Saved;
     dirty_ = false;
@@ -209,6 +218,43 @@ void SettingsMenu::activate() {
   if (item == SettingsItem::Back) {
     result_ = Result::Back;
     return;
+  }
+}
+
+void SettingsMenu::capture_clear(const KeyEvent& ev) {
+  if (ev.key == Key::Esc) {
+    confirming_clear_ = false;
+    clear_buf_.clear();
+    status_ = "Clear cancelled";
+    return;
+  }
+  if (ev.key == Key::Enter) {
+    std::string lower;
+    lower.reserve(clear_buf_.size());
+    for (unsigned char c : clear_buf_) {
+      lower.push_back(static_cast<char>(std::tolower(c)));
+    }
+    confirming_clear_ = false;
+    clear_buf_.clear();
+    if (lower == "yes") {
+      result_ = Result::ClearedScores;
+      status_ = "High scores cleared";
+    } else {
+      status_ = "Not cleared";
+    }
+    return;
+  }
+  if (ev.key == Key::Backspace) {
+    if (!clear_buf_.empty()) {
+      clear_buf_.pop_back();
+    }
+    return;
+  }
+  if (ev.key == Key::Char) {
+    const unsigned char c = ev.ch;
+    if (std::isalnum(c) && clear_buf_.size() < 8) {
+      clear_buf_.push_back(static_cast<char>(c));
+    }
   }
 }
 
@@ -246,6 +292,10 @@ void SettingsMenu::capture(const KeyEvent& ev) {
 }
 
 void SettingsMenu::on_key(const KeyEvent& ev) {
+  if (confirming_clear_) {
+    capture_clear(ev);
+    return;
+  }
   if (capturing_) {
     capture(ev);
     return;

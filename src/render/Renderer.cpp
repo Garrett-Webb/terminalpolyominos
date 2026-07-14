@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <ctime>
 #include <initializer_list>
 #include <string>
 #include <string_view>
@@ -425,37 +426,194 @@ void Renderer::piece_preview(Canvas& f, const Layout& lay, int row, int col, int
   }
 }
 
-void Renderer::draw_title() {
+void Renderer::draw_title(const HighScores& scores, Randomizer current) {
   const TermSize sz = term_.size();
   canvas_.begin(sz);
 
-  const int row = sz.rows > 12 ? sz.rows / 2 - 5 : 1;
-  const int col = sz.cols > 44 ? (sz.cols - 44) / 2 + 1 : 1;
+  constexpr int kContentMax = 48;
+  // logo(6), wordmark, blank, tagline, blank, actions, blank, score hdr + 3, blank, CTA
+  constexpr int kBlockH = 18;
+  const int content_w = std::min(kContentMax, std::max(1, sz.cols));
+  const int col = sz.cols > content_w ? (sz.cols - content_w) / 2 + 1 : 1;
+  int y = sz.rows > kBlockH + 2 ? (sz.rows - kBlockH) / 2 + 1 : 1;
 
-  canvas_.cup(row, col);
+  auto pad_line = [&](int r, std::string_view s) {
+    canvas_.cup(r, col);
+    if (static_cast<int>(s.size()) > content_w) {
+      canvas_.text(s.substr(0, static_cast<std::size_t>(content_w)));
+      return;
+    }
+    canvas_.text(s);
+    for (int i = static_cast<int>(s.size()); i < content_w; ++i) {
+      canvas_.text(' ');
+    }
+  };
+
+  static constexpr std::string_view kLogo[] = {
+      " _               _",
+      "| |_ _ __   ___ | |_   _",
+      "| __| '_ \\ / _ \\| | | | |",
+      "| |_| |_) | (_) | | |_| |",
+      " \\__| .__/ \\___/|_|\\__, |",
+      "    |_|            |___/",
+  };
+
+  canvas_.reset();
   if (term_.color_enabled()) {
     canvas_.bold();
     canvas_.fg(6);
   }
-  canvas_.text("terminalpolyominos");
+  for (std::string_view row : kLogo) {
+    pad_line(y++, row);
+  }
+  pad_line(y++, "terminalpolyominos");
   canvas_.reset();
 
-  canvas_.cup(row + 2, col);
-  canvas_.text("Colored polyomino stacking for terminals");
+  pad_line(y++, "");
+  pad_line(y++, "Lightweight full-featured stacking for terminals");
 
-  canvas_.cup(row + 4, col);
-  canvas_.text("Enter / r  start          o  settings");
-  canvas_.cup(row + 5, col);
-  canvas_.text("arrows/wasd move   z/x rotate   space sonic   up hard");
-  canvas_.cup(row + 6, col);
-  canvas_.text("c hold   p/esc pause   q quit");
+  pad_line(y++, "");
+  pad_line(y++, "Enter / r play   o settings   h scores");
 
-  canvas_.cup(row + 8, col);
+  pad_line(y++, "");
+  const auto& board = scores.board(current);
+  {
+    std::string hdr = "Top ";
+    hdr += HighScores::token(current);
+    if (term_.color_enabled()) {
+      canvas_.dim();
+    }
+    pad_line(y++, hdr);
+    canvas_.reset();
+  }
+  if (board.empty()) {
+    if (term_.color_enabled()) {
+      canvas_.dim();
+    }
+    pad_line(y++, "  (none)");
+    canvas_.reset();
+    pad_line(y++, "");
+    pad_line(y++, "");
+  } else {
+    const int n = std::min(3, static_cast<int>(board.size()));
+    for (int i = 0; i < 3; ++i) {
+      if (i < n) {
+        const auto& e = board[static_cast<std::size_t>(i)];
+        char line[48];
+        std::snprintf(line, sizeof(line), " %d. %-8s  %d", i + 1, e.name.c_str(), e.score);
+        if (term_.color_enabled()) {
+          canvas_.dim();
+        }
+        pad_line(y++, line);
+        canvas_.reset();
+      } else {
+        pad_line(y++, "");
+      }
+    }
+  }
+
+  pad_line(y++, "");
   if (term_.color_enabled()) {
     canvas_.fg(3);
   }
-  canvas_.text("Press Enter to play");
+  pad_line(y++, "Press Enter to play");
   canvas_.reset();
+
+  canvas_.present(term_);
+}
+
+void Renderer::draw_scores(const HighScores& scores, Randomizer viewing) {
+  const TermSize sz = term_.size();
+  canvas_.begin(sz);
+
+  const int width = std::min(58, std::max(48, sz.cols - 4));
+  const int col = std::max(1, (sz.cols - width) / 2 + 1);
+  int row = 2;
+
+  // ASCII only — multi-byte glyphs (e.g. em dash) occupy several canvas cells but one
+  // terminal column, which skews overwrite when cycling board names.
+  auto pad_line = [&](int r, std::string_view s) {
+    canvas_.cup(r, col);
+    if (static_cast<int>(s.size()) >= width) {
+      canvas_.text(s.substr(0, static_cast<std::size_t>(width)));
+      return;
+    }
+    canvas_.text(s);
+    for (int i = static_cast<int>(s.size()); i < width; ++i) {
+      canvas_.text(' ');
+    }
+  };
+
+  auto format_date = [](std::int64_t unix_time, char* out, std::size_t out_n) {
+    if (out_n < 11) {
+      return;
+    }
+    const std::time_t t = static_cast<std::time_t>(unix_time);
+    std::tm tm_buf{};
+#if defined(_WIN32)
+    localtime_s(&tm_buf, &t);
+#else
+    if (localtime_r(&t, &tm_buf) == nullptr) {
+      std::snprintf(out, out_n, "----/--/--");
+      return;
+    }
+#endif
+    if (std::strftime(out, out_n, "%Y-%m-%d", &tm_buf) == 0) {
+      std::snprintf(out, out_n, "----/--/--");
+    }
+  };
+
+  // Wipe first with default attrs so shorter titles never leave bold crumbs.
+  canvas_.reset();
+  pad_line(row, "");
+  if (term_.color_enabled()) {
+    canvas_.bold();
+    canvas_.fg(6);
+  }
+  {
+    // Fixed token field (longest token is "torture") so every board paints the same span.
+    char title[48];
+    std::snprintf(title, sizeof(title), "HIGH SCORES - %-7s", HighScores::token(viewing));
+    pad_line(row, title);
+  }
+  canvas_.reset();
+  ++row;
+
+  canvas_.reset();
+  pad_line(row, "");
+  if (term_.color_enabled()) {
+    canvas_.dim();
+  }
+  pad_line(row, "Left/Right cycle board     Esc / q back");
+  canvas_.reset();
+  row += 2;
+
+  canvas_.reset();
+  pad_line(row, "");
+  if (term_.color_enabled()) {
+    canvas_.dim();
+  }
+  pad_line(row, " #  Name      Score  Lv  Lines  Date");
+  canvas_.reset();
+  ++row;
+
+  const auto& board = scores.board(viewing);
+  for (int i = 0; i < kHighScoreBoardMax; ++i) {
+    canvas_.reset();
+    if (i < static_cast<int>(board.size())) {
+      const auto& e = board[static_cast<std::size_t>(i)];
+      char date[16];
+      format_date(e.unix_time, date, sizeof(date));
+      char line[72];
+      std::snprintf(line, sizeof(line), "%2d  %-8s %6d %3d %6d  %s", i + 1, e.name.c_str(),
+                    e.score, e.level, e.lines, date);
+      pad_line(row + i, line);
+    } else if (i == 0 && board.empty()) {
+      pad_line(row + i, "  (empty)");
+    } else {
+      pad_line(row + i, "");
+    }
+  }
 
   canvas_.present(term_);
 }
@@ -474,7 +632,8 @@ void Renderer::draw_too_small() {
   canvas_.present(term_);
 }
 
-void Renderer::draw_game(const GameState& state, bool freak_colors) {
+void Renderer::draw_game(const GameState& state, bool freak_colors,
+                         const GameOverExtras* game_over) {
   const TermSize sz = term_.size();
   const Layout lay = compute_layout(sz);
   canvas_.begin(sz);
@@ -724,7 +883,25 @@ void Renderer::draw_game(const GameState& state, bool freak_colors) {
     draw_counts(r++, {PieceType::I, PieceType::O, PieceType::T, PieceType::S});
     draw_counts(r++, {PieceType::Z, PieceType::J, PieceType::L, PieceType::Custom});
     clear_row(r++);
-    center_text(r++, "r/Enter retry  q quit");
+    if (game_over != nullptr && game_over->is_high_score) {
+      std::string banner = "NEW HIGH SCORE  #";
+      banner += std::to_string(game_over->rank);
+      banner += "  (";
+      banner += HighScores::token(game_over->board);
+      banner += ")";
+      center_text(r++, banner, 3, true);
+      if (game_over->editing_name) {
+        std::string prompt = "Name: ";
+        prompt += game_over->name_buf.empty() ? "_" : std::string(game_over->name_buf);
+        prompt += "   Enter save  Esc discard";
+        center_text(r++, prompt, 2, false);
+      } else {
+        clear_row(r++);
+      }
+    }
+    center_text(r++, game_over != nullptr && game_over->editing_name
+                         ? "(save or discard score to continue)"
+                         : "r/Enter retry  q quit");
   }
 
   constexpr char kHint[] = "z/x rotate  c hold  space sonic  up hard  p pause  o settings  q quit";
@@ -784,6 +961,8 @@ const char* settings_label(SettingsItem item) {
       return "Key restart";
     case SettingsItem::KeySettings:
       return "Key settings";
+    case SettingsItem::ClearScores:
+      return "Clear high scores";
     case SettingsItem::Save:
       return "Save";
     case SettingsItem::Reset:
@@ -853,6 +1032,7 @@ std::string settings_value(const Settings& s, SettingsItem item) {
       return k.format_list(k.restart);
     case SettingsItem::KeySettings:
       return k.format_list(k.settings);
+    case SettingsItem::ClearScores:
     case SettingsItem::Save:
     case SettingsItem::Reset:
     case SettingsItem::Back:
@@ -943,12 +1123,22 @@ void Renderer::draw_settings(const SettingsMenuView& menu) {
     canvas_.text(' ');
     pad_text(settings_label(item), kLabelField);
 
-    if (item == SettingsItem::Save || item == SettingsItem::Reset || item == SettingsItem::Back) {
+    if (item == SettingsItem::ClearScores || item == SettingsItem::Save ||
+        item == SettingsItem::Reset || item == SettingsItem::Back) {
       // Clear any leftover value text from scrolling past keybind rows.
       const int val_col = col + 2 + kLabelField;
       const int max_v = std::max(8, col + width - val_col);
       canvas_.cup(y, val_col);
-      pad_text("", max_v);
+      if (sel && menu.confirming_clear && item == SettingsItem::ClearScores) {
+        if (term_.color_enabled()) {
+          canvas_.fg(1);
+        }
+        std::string prompt = "yes? ";
+        prompt += menu.clear_buf;
+        pad_text(prompt, max_v);
+      } else {
+        pad_text("", max_v);
+      }
     } else {
       const std::string val = settings_value(menu.draft, item);
       const int val_col = col + 2 + kLabelField;
@@ -968,18 +1158,44 @@ void Renderer::draw_settings(const SettingsMenuView& menu) {
   }
 
   const int foot = sz.rows - 2;
-  canvas_.cup(foot, col);
-  if (term_.color_enabled()) {
-    canvas_.dim();
-  }
-  const int foot_w = std::max(8, width);
-  if (menu.capturing) {
-    pad_text("Capturing — press a key, Esc cancels", foot_w);
-  } else {
-    pad_text("↑↓ move  ←→ adjust  Enter select  Esc back", foot_w);
-  }
-  canvas_.reset();
+  const int foot_w = width;
 
+  auto pad_foot = [&](int r, std::string_view s) {
+    canvas_.reset();
+    canvas_.cup(r, col);
+    // Full wipe under default attrs first (kills UTF-8 / attr crumbs).
+    for (int i = 0; i < foot_w; ++i) {
+      canvas_.text(' ');
+    }
+    canvas_.cup(r, col);
+    if (term_.color_enabled()) {
+      canvas_.dim();
+    }
+    if (static_cast<int>(s.size()) >= foot_w) {
+      canvas_.text(s.substr(0, static_cast<std::size_t>(foot_w)));
+    } else {
+      canvas_.text(s);
+      for (int i = static_cast<int>(s.size()); i < foot_w; ++i) {
+        canvas_.text(' ');
+      }
+    }
+    canvas_.reset();
+  };
+
+  // ASCII only — arrow / em-dash glyphs break canvas-vs-terminal columns.
+  if (menu.confirming_clear) {
+    pad_foot(foot, "Type yes + Enter to wipe ALL boards - Esc cancels");
+  } else if (menu.capturing) {
+    pad_foot(foot, "Capturing - press a key, Esc cancels");
+  } else {
+    pad_foot(foot, "Up/Down move  Left/Right adjust  Enter select  Esc back");
+  }
+
+  canvas_.cup(foot + 1, col);
+  canvas_.reset();
+  for (int i = 0; i < foot_w; ++i) {
+    canvas_.text(' ');
+  }
   canvas_.cup(foot + 1, col);
   if (!menu.status.empty()) {
     if (term_.color_enabled()) {
@@ -987,8 +1203,6 @@ void Renderer::draw_settings(const SettingsMenuView& menu) {
     }
     pad_text(menu.status, foot_w);
     canvas_.reset();
-  } else {
-    pad_text("", foot_w);
   }
 
   canvas_.present(term_);

@@ -19,6 +19,7 @@ the CPU.
 - **Back-to-back** (×1.5 on difficult clears) and **combo** (`50 × n × level`)
 - Remappable keys and timing via an in-game settings menu (`o`)
 - Six piece randomizers — from classic 7-bag to generated “freak” polyominoes
+- **Local high scores** per randomizer (`h` on title; file `~/.local/share/tpoly/scores`)
 - NEXT queue length 1–5; line-clear and hard-drop flash polish
 - ANSI color when available (`NO_COLOR` / `TERM=dumb` respected)
 - Config under `~/.config/tpoly/.tpolyrc` (XDG)
@@ -166,6 +167,8 @@ cmake --install build --prefix ~/.local
 Timing keys: `move_interval_ms`, `soft_drop_interval_ms`, `release_ms`, `lock_delay_ms`, `lines_per_level`, `next_count` (1–5), `randomizer` (`7bag`, `7+1`, `random`, `torture`, `funk`, `freak`), `freak_colors` (`on` / `off` — hashed bright colors for custom pieces).
 
 Keybind keys (comma-separated tokens, e.g. `left,a,h`): `key_left`, `key_right`, `key_soft_drop`, `key_hard_drop`, `key_sonic_drop`, `key_rotate_cw`, `key_rotate_ccw`, `key_hold`, `key_pause`, `key_quit`, `key_restart`, `key_settings`.
+
+High scores (separate from rc): `~/.local/share/tpoly/scores` — one sectioned file with a top-10 board per randomizer. Title screen **`h`** opens the list (Left/Right cycles boards). Qualifying game overs prompt for a name (prefilled from `$USER`; Enter saves, Esc discards). Settings → **Clear high scores** requires typing **`yes`**.
 
 ---
 

@@ -36,6 +36,8 @@ std::string tpoly_data_dir() { return xdg_data_home() + "/tpoly"; }
 
 std::string tpoly_rc_path() { return tpoly_config_dir() + "/.tpolyrc"; }
 
+std::string tpoly_scores_path() { return tpoly_data_dir() + "/scores"; }
+
 std::string tpoly_rc_legacy_path() { return home_dir() + "/.tpolyrc"; }
 
 bool ensure_dir(const std::string& path) {

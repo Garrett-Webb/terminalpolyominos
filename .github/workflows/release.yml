@@ -140,7 +140,7 @@ jobs:
           chmod +x terminalpolyominos
           ./terminalpolyominos
           \`\`\`
-          If Gatekeeper blocks it: right-click → Open, or \`xattr -dr com.apple.quarantine terminalpolyominos\`.
+          If Gatekeeper blocks it: right-click -> Open, or \`xattr -dr com.apple.quarantine terminalpolyominos\`.
 
           Verify: \`sha256sum -c SHA256SUMS.txt\` (or \`shasum -a 256 -c\` on macOS)
 

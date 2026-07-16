@@ -57,7 +57,7 @@ class HighScores {
   [[nodiscard]] static std::optional<Randomizer> parse_token(std::string_view t);
   [[nodiscard]] static std::optional<PlayMode> parse_mode_token(std::string_view t);
 
-  // Flat helpers (storage index); UI cycles randomizers only — see cycle_randomizer.
+  // Flat helpers (storage index); UI cycles randomizers only - see cycle_randomizer.
   [[nodiscard]] static int flat_index(Randomizer r, PlayMode mode);
   [[nodiscard]] static Randomizer flat_randomizer(int flat);
   [[nodiscard]] static PlayMode flat_mode(int flat);

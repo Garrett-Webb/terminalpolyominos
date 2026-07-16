@@ -11,6 +11,9 @@ struct TermSize {
   int cols = 0;
 };
 
+// Progressive enhancement flags: disambiguate | event types | report all keys.
+inline constexpr int kKittyKbFlags = 1 | 2 | 8;  // 11
+
 // Owns tty state for the process lifetime. Restores the terminal on destroy,
 // atexit, and common fatal signals.
 class Terminal {
@@ -25,6 +28,7 @@ class Terminal {
   [[nodiscard]] bool color_enabled() const { return color_; }
   // True when color_enabled and TERM looks like a 256-color capable terminal.
   [[nodiscard]] bool colors_256() const { return color_ && colors_256_; }
+  [[nodiscard]] bool keyboard_enhanced() const { return keyboard_enhanced_; }
   [[nodiscard]] TermSize size() const;
 
   void write(std::string_view s);
@@ -51,12 +55,19 @@ class Terminal {
   void enter_alt_screen();
   void leave_alt_screen();
 
+  // Kitty keyboard protocol: query support, push flags, pop on disable/restore.
+  // Call after enter_alt_screen. timeout_ms budgets the detection handshake.
+  [[nodiscard]] bool detect_keyboard_protocol(int timeout_ms = 80);
+  [[nodiscard]] bool enable_keyboard_protocol();
+  void disable_keyboard_protocol();
+
  private:
   bool ok_ = false;
   bool color_ = false;
   bool colors_256_ = false;
   bool alt_screen_ = false;
   bool raw_ = false;
+  bool keyboard_enhanced_ = false;
   termios original_{};
 };
 

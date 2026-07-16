@@ -130,7 +130,7 @@ void Renderer::Canvas::emit_sgr(std::string& out, const Glyph& g) const {
   }
   // present() calls this; Index 0–255 always via 38;5 when term supports 256.
   // For simplicity emit 38;5/48;5 whenever index > 15 OR we need a single path;
-  // for 0–15 on 16-color TTYs, classic codes are safer — decided by caller via
+  // for 0–15 on 16-color TTYs, classic codes are safer - decided by caller via
   // whether values >15 appear. Always use 38;5 when fg>15; else dual path:
   auto append_fg = [&](int c) {
     char tmp[24];
@@ -248,7 +248,7 @@ void Renderer::Canvas::present(Terminal& term) {
     if (!any) {
       last_empty_ = true;
       force_full_ = false;
-      return;  // Nothing changed — skip the write syscall entirely.
+      return;  // Nothing changed - skip the write syscall entirely.
     }
   }
 
@@ -355,7 +355,7 @@ void Renderer::cell(Canvas& f, const Layout& lay, int row, int col, bool filled,
     }
     if (ghost) {
       if (term_.color_enabled()) {
-        f.dim();
+        // Outline only - do not dim; SGR dim + dark/transparent themes makes ghosts vanish.
         f.fg(color);
       }
       if (lay.cell_w <= 2) {
@@ -497,7 +497,9 @@ void Renderer::draw_title(const HighScores& scores, Randomizer current, PlayMode
     actions += keybinds.format_list(keybinds.settings);
     actions += " settings   ";
     actions += keybinds.format_list(keybinds.scores);
-    actions += " scores";
+    actions += " scores   ";
+    actions += keybinds.format_list(keybinds.quit);
+    actions += " quit";
     pad_line(y++, actions);
   }
 
@@ -548,7 +550,8 @@ void Renderer::draw_title(const HighScores& scores, Randomizer current, PlayMode
   canvas_.present(term_);
 }
 
-void Renderer::draw_scores(const HighScores& scores, Randomizer viewing) {
+void Renderer::draw_scores(const HighScores& scores, Randomizer viewing,
+                           const Keybinds& keybinds) {
   const TermSize sz = term_.size();
   canvas_.begin(sz);
 
@@ -556,7 +559,7 @@ void Renderer::draw_scores(const HighScores& scores, Randomizer viewing) {
   const int col = std::max(1, (sz.cols - width) / 2 + 1);
   int row = 1;
 
-  // ASCII only — multi-byte glyphs skew overwrite when cycling board names.
+  // ASCII only - multi-byte glyphs skew overwrite when cycling board names.
   auto pad_line = [&](int r, std::string_view s) {
     canvas_.cup(r, col);
     if (static_cast<int>(s.size()) >= width) {
@@ -607,7 +610,16 @@ void Renderer::draw_scores(const HighScores& scores, Randomizer viewing) {
   if (term_.color_enabled()) {
     canvas_.dim();
   }
-  pad_line(row, "Left/Right cycle randomizer     Esc / q back");
+  {
+    std::string nav = "Left/Right cycle randomizer     Esc";
+    const std::string quit = keybinds.format_list(keybinds.quit);
+    if (!quit.empty()) {
+      nav += " / ";
+      nav += quit;
+    }
+    nav += " back";
+    pad_line(row, nav);
+  }
   canvas_.reset();
   ++row;
 
@@ -666,7 +678,7 @@ void Renderer::draw_scores(const HighScores& scores, Randomizer viewing) {
   canvas_.present(term_);
 }
 
-void Renderer::draw_too_small() {
+void Renderer::draw_too_small(const Keybinds& keybinds) {
   const TermSize sz = term_.size();
   canvas_.begin(sz);
   canvas_.cup(1, 1);
@@ -676,12 +688,15 @@ void Renderer::draw_too_small() {
   canvas_.number(kMinTermCols);
   canvas_.text("x");
   canvas_.number(kMinTermRows);
-  canvas_.text(". Resize or q to quit.");
+  canvas_.text(". Resize or ");
+  const std::string quit = keybinds.format_list(keybinds.quit);
+  canvas_.text(quit.empty() ? "q" : quit);
+  canvas_.text(" to quit.");
   canvas_.present(term_);
 }
 
 void Renderer::draw_game(const GameState& state, const GameConfig& config,
-                         const GameOverExtras* game_over) {
+                         const Keybinds& keybinds, const GameOverExtras* game_over) {
   const bool freak_colors = config.freak_colors;
   const TermSize sz = term_.size();
   const Layout lay = compute_layout(sz);
@@ -819,6 +834,13 @@ void Renderer::draw_game(const GameState& state, const GameConfig& config,
       canvas_.text('|');
       canvas_.cup(row + dy, lay.field_col + 1 + inner_w);
       canvas_.text('|');
+      // Gutters are not otherwise painted; wipe so overlay spill cannot stick.
+      for (int g = 0; g < kGap; ++g) {
+        canvas_.cup(row + dy, lay.field_col + lay.field_w + g);
+        canvas_.text(' ');
+        canvas_.cup(row + dy, lay.hold_col + (lay.side_inner_w + 2) + g);
+        canvas_.text(' ');
+      }
     }
 
     for (int x = 0; x < kBoardWidth; ++x) {
@@ -826,7 +848,7 @@ void Renderer::draw_game(const GameState& state, const GameConfig& config,
       if (state.clear_flash_ms > 0 && state.clear_rows[static_cast<std::size_t>(by)]) {
         cell(canvas_, lay, row, col, true, 7, false, true);
       } else if (lock_flash_mask[by][x]) {
-        // White flash only — caller disables anim when color is off.
+        // White flash only - caller disables anim when color is off.
         cell(canvas_, lay, row, col, true, 7, false, true);
       } else if (active_mask[by][x]) {
         cell(canvas_, lay, row, col, true, active_color, false);
@@ -871,16 +893,25 @@ void Renderer::draw_game(const GameState& state, const GameConfig& config,
   const int overlay_row = lay.field_row + std::max(1, field_inner_h / 2 - 5);
   const int overlay_col = lay.field_col + 1;
   const int overlay_w = inner_w;
+  const int overlay_end = overlay_col + overlay_w;  // first col past playfield interior
 
   auto clear_row = [&](int r) {
     canvas_.cup(r, overlay_col);
     for (int i = 0; i < overlay_w; ++i) {
       canvas_.text(' ');
     }
+    // Also wipe the NEXT gutter - long overlay lines used to spill here.
+    for (int g = 0; g < kGap; ++g) {
+      canvas_.cup(r, lay.field_col + lay.field_w + g);
+      canvas_.text(' ');
+    }
   };
 
   auto center_text = [&](int r, std::string_view text, int fg = -1, bool bold = false) {
     clear_row(r);
+    if (static_cast<int>(text.size()) > overlay_w) {
+      text = text.substr(0, static_cast<std::size_t>(overlay_w));
+    }
     const int left = std::max(0, (overlay_w - static_cast<int>(text.size())) / 2);
     canvas_.cup(r, overlay_col + left);
     if (fg >= 0 && term_.color_enabled()) {
@@ -894,8 +925,29 @@ void Renderer::draw_game(const GameState& state, const GameConfig& config,
   };
 
   if (state.phase == Phase::Paused) {
-    center_text(overlay_row, "PAUSED", 3, true);
-    center_text(overlay_row + 1, "p/esc resume  o settings  q quit");
+    int r = overlay_row;
+    center_text(r++, "PAUSED", 3, true);
+    const std::string parts[] = {
+        keybinds.format_list(keybinds.pause) + " resume",
+        keybinds.format_list(keybinds.settings) + " settings",
+        keybinds.format_list(keybinds.quit) + " quit",
+    };
+    // Pack onto as few centered lines as fit the playfield width.
+    std::string line;
+    for (const std::string& part : parts) {
+      if (line.empty()) {
+        line = part;
+      } else if (static_cast<int>(line.size() + 2 + part.size()) <= overlay_w) {
+        line += "  ";
+        line += part;
+      } else {
+        center_text(r++, line);
+        line = part;
+      }
+    }
+    if (!line.empty()) {
+      center_text(r++, line);
+    }
   } else if (state.phase == Phase::GameOver || state.phase == Phase::Finished) {
     int r = overlay_row;
     if (state.phase == Phase::Finished) {
@@ -939,12 +991,23 @@ void Renderer::draw_game(const GameState& state, const GameConfig& config,
         text += ':';
         text += std::to_string(state.pieces_placed[static_cast<std::size_t>(t)]);
       }
+      if (static_cast<int>(text.size()) > overlay_w) {
+        text.resize(static_cast<std::size_t>(overlay_w));
+      }
       const int left = std::max(0, (overlay_w - static_cast<int>(text.size())) / 2);
       int col = overlay_col + left;
       for (PieceType t : types) {
+        if (col >= overlay_end) {
+          break;
+        }
         const std::string name = piece_name(t);
         const std::string num =
             std::to_string(state.pieces_placed[static_cast<std::size_t>(t)]);
+        const int name_n = static_cast<int>(name.size());
+        const int num_n = static_cast<int>(num.size());
+        if (col + name_n > overlay_end) {
+          break;
+        }
         canvas_.cup(row, col);
         if (term_.color_enabled()) {
           canvas_.bold();
@@ -952,11 +1015,20 @@ void Renderer::draw_game(const GameState& state, const GameConfig& config,
         }
         canvas_.text(name);
         canvas_.reset();
-        col += static_cast<int>(name.size());
+        col += name_n;
+        if (col >= overlay_end) {
+          break;
+        }
         canvas_.cup(row, col);
         canvas_.text(':');
-        canvas_.text(num);
-        col += 1 + static_cast<int>(num.size()) + 2;
+        ++col;
+        const int digits = std::min(num_n, overlay_end - col);
+        if (digits > 0) {
+          canvas_.cup(row, col);
+          canvas_.text(std::string_view(num).substr(0, static_cast<std::size_t>(digits)));
+          col += digits;
+        }
+        col += 2;
       }
     };
 
@@ -966,33 +1038,75 @@ void Renderer::draw_game(const GameState& state, const GameConfig& config,
     if (game_over != nullptr && game_over->is_high_score) {
       std::string banner = "NEW HIGH SCORE  #";
       banner += std::to_string(game_over->rank);
-      banner += "  (";
-      banner += HighScores::section_token(game_over->board, game_over->mode);
-      banner += ")";
       center_text(r++, banner, 3, true);
+      std::string section = "(";
+      section += HighScores::section_token(game_over->board, game_over->mode);
+      section += ")";
+      center_text(r++, section, 3, false);
       if (game_over->editing_name) {
         std::string prompt = "Name: ";
         prompt += game_over->name_buf.empty() ? "_" : std::string(game_over->name_buf);
-        prompt += "   Enter save  Esc discard";
+        // Keep this short - at scale 1 the playfield interior is only 30 cols.
+        prompt += "  Enter/Esc";
         center_text(r++, prompt, 2, false);
       } else {
         clear_row(r++);
       }
     }
-    center_text(r++, game_over != nullptr && game_over->editing_name
-                         ? "(save or discard score to continue)"
-                         : "Enter retry  q quit");
+    if (game_over != nullptr && game_over->editing_name) {
+      center_text(r++, "Enter save  Esc discard");
+    } else {
+      std::string retry_help;
+      retry_help += keybinds.format_list(keybinds.restart);
+      retry_help += " retry  ";
+      retry_help += keybinds.format_list(keybinds.quit);
+      retry_help += " quit";
+      center_text(r++, retry_help);
+    }
   }
 
-  constexpr char kHint[] = "z/x rotate  c hold  space sonic  up hard  p pause  o settings  q quit";
-  const int hint_len = static_cast<int>(sizeof(kHint) - 1);
-  const int hint_col = lay.field_col + std::max(0, (lay.field_w - hint_len) / 2);
-  canvas_.cup(lay.hint_row, std::max(1, hint_col));
-  if (term_.color_enabled()) {
-    canvas_.dim();
+  {
+    std::string hint;
+    hint += keybinds.format_list(keybinds.rotate_ccw);
+    hint += '/';
+    hint += keybinds.format_list(keybinds.rotate_cw);
+    hint += " rotate  ";
+    hint += keybinds.format_list(keybinds.hold);
+    hint += " hold  ";
+    hint += keybinds.format_list(keybinds.sonic_drop);
+    hint += " sonic  ";
+    hint += keybinds.format_list(keybinds.hard_drop);
+    hint += " hard  ";
+    hint += keybinds.format_list(keybinds.pause);
+    hint += " pause  ";
+    hint += keybinds.format_list(keybinds.settings);
+    hint += " settings  ";
+    hint += keybinds.format_list(keybinds.quit);
+    hint += " quit";
+
+    // Center in the full terminal width; truncate if the remapped list is too long.
+    const int term_w = std::max(1, sz.cols);
+    std::string_view shown = hint;
+    int hint_col = 1;
+    if (static_cast<int>(hint.size()) > term_w) {
+      shown = std::string_view(hint).substr(0, static_cast<std::size_t>(term_w));
+    } else {
+      hint_col = 1 + (term_w - static_cast<int>(hint.size())) / 2;
+    }
+
+    // Wipe the whole hint row so a longer previous string cannot leave crumbs.
+    canvas_.cup(lay.hint_row, 1);
+    for (int i = 0; i < term_w; ++i) {
+      canvas_.text(' ');
+    }
+
+    canvas_.cup(lay.hint_row, hint_col);
+    if (term_.color_enabled()) {
+      canvas_.dim();
+    }
+    canvas_.text(shown);
+    canvas_.reset();
   }
-  canvas_.text(kHint);
-  canvas_.reset();
 
   canvas_.present(term_);
 }
@@ -1006,7 +1120,7 @@ const char* settings_label(SettingsItem item) {
     case SettingsItem::SoftDropInterval:
       return "Soft-drop interval";
     case SettingsItem::ReleaseMs:
-      return "Release delay";
+      return "DAS / release";
     case SettingsItem::LockDelay:
       return "Lock delay";
     case SettingsItem::LinesPerLevel:
@@ -1019,6 +1133,8 @@ const char* settings_label(SettingsItem item) {
       return "Play mode";
     case SettingsItem::FreakColors:
       return "Freak colors";
+    case SettingsItem::KeyboardProtocol:
+      return "Keyboard protocol";
     case SettingsItem::KeyLeft:
       return "Key left";
     case SettingsItem::KeyRight:
@@ -1102,6 +1218,8 @@ std::string settings_value(const Settings& s, SettingsItem item) {
       return "endless";
     case SettingsItem::FreakColors:
       return s.game.freak_colors ? "on" : "off";
+    case SettingsItem::KeyboardProtocol:
+      return keyboard_protocol_token(s.input.keyboard_protocol);
     case SettingsItem::KeyLeft:
       return k.format_list(k.left);
     case SettingsItem::KeyRight:
@@ -1190,67 +1308,91 @@ void Renderer::draw_settings(const SettingsMenuView& menu) {
   canvas_.reset();
   row += 2;
 
-  const int footer_rows = 3;
-  const int visible = std::max(8, sz.rows - row - footer_rows);
-  int start = menu.scroll;
-  start = std::max(0, std::min(start, kSettingsItemCount - 1));
-  // Prefer keeping selection in view.
-  if (menu.selected < start) {
-    start = menu.selected;
+  const int visible = settings_viewport_rows(sz.rows);
+  int vscroll = menu.scroll;
+  const int sel_v = settings_item_visual_row(menu.selected);
+  if (sel_v < vscroll) {
+    vscroll = sel_v;
+  } else if (sel_v >= vscroll + visible) {
+    vscroll = sel_v - visible + 1;
   }
-  if (menu.selected >= start + visible) {
-    start = menu.selected - visible + 1;
-  }
-  start = std::max(0, std::min(start, std::max(0, kSettingsItemCount - visible)));
+  const int max_scroll = std::max(0, settings_list_rows() - visible);
+  vscroll = std::max(0, std::min(vscroll, max_scroll));
 
-  constexpr int kLabelField = 18;
-  for (int i = 0; i < visible && start + i < kSettingsItemCount; ++i) {
-    const int idx = start + i;
+  constexpr int kLabelField = 19;
+  int y = row;
+  const int y_end = row + visible;
+
+  // Map visual rows [vscroll, vscroll+visible) onto items (and gap blanks).
+  int visual = 0;
+  for (int idx = 0; idx < kSettingsItemCount && y < y_end; ++idx) {
     const auto item = static_cast<SettingsItem>(idx);
-    const bool sel = idx == menu.selected;
-    const int y = row + i;
+    if (settings_gap_before(item)) {
+      if (visual >= vscroll && visual < vscroll + visible) {
+        canvas_.cup(y, col);
+        pad_text("", width);
+        canvas_.reset();
+        ++y;
+      }
+      ++visual;
+      if (y >= y_end) {
+        break;
+      }
+    }
 
+    if (visual >= vscroll && visual < vscroll + visible) {
+      const bool sel = idx == menu.selected;
+      canvas_.cup(y, col);
+      if (sel && term_.color_enabled()) {
+        canvas_.bold();
+        canvas_.fg(3);
+      }
+      canvas_.text(sel ? '>' : ' ');
+      canvas_.text(' ');
+      pad_text(settings_label(item), kLabelField);
+
+      if (item == SettingsItem::ClearScores || item == SettingsItem::Save ||
+          item == SettingsItem::Reset || item == SettingsItem::Back) {
+        // Clear any leftover value text from scrolling past keybind rows.
+        const int val_col = col + 2 + kLabelField;
+        const int max_v = std::max(8, col + width - val_col);
+        canvas_.cup(y, val_col);
+        if (sel && menu.confirming_clear && item == SettingsItem::ClearScores) {
+          if (term_.color_enabled()) {
+            canvas_.fg(1);
+          }
+          std::string prompt = "yes? ";
+          prompt += menu.clear_buf;
+          pad_text(prompt, max_v);
+        } else {
+          pad_text("", max_v);
+        }
+      } else {
+        const std::string val = settings_value(menu.draft, item);
+        const int val_col = col + 2 + kLabelField;
+        canvas_.cup(y, val_col);
+        const int max_v = std::max(8, col + width - val_col);
+        if (sel && menu.capturing && item >= SettingsItem::KeyLeft &&
+            item <= SettingsItem::KeyScores) {
+          if (term_.color_enabled()) {
+            canvas_.fg(2);
+          }
+          pad_text("press key...", max_v);
+        } else {
+          pad_text(val, max_v);
+        }
+      }
+      canvas_.reset();
+      ++y;
+    }
+    ++visual;
+  }
+  // Wipe leftover rows when the list is shorter than the viewport (gaps / scroll).
+  while (y < y_end) {
     canvas_.cup(y, col);
-    if (sel && term_.color_enabled()) {
-      canvas_.bold();
-      canvas_.fg(3);
-    }
-    canvas_.text(sel ? '>' : ' ');
-    canvas_.text(' ');
-    pad_text(settings_label(item), kLabelField);
-
-    if (item == SettingsItem::ClearScores || item == SettingsItem::Save ||
-        item == SettingsItem::Reset || item == SettingsItem::Back) {
-      // Clear any leftover value text from scrolling past keybind rows.
-      const int val_col = col + 2 + kLabelField;
-      const int max_v = std::max(8, col + width - val_col);
-      canvas_.cup(y, val_col);
-      if (sel && menu.confirming_clear && item == SettingsItem::ClearScores) {
-        if (term_.color_enabled()) {
-          canvas_.fg(1);
-        }
-        std::string prompt = "yes? ";
-        prompt += menu.clear_buf;
-        pad_text(prompt, max_v);
-      } else {
-        pad_text("", max_v);
-      }
-    } else {
-      const std::string val = settings_value(menu.draft, item);
-      const int val_col = col + 2 + kLabelField;
-      canvas_.cup(y, val_col);
-      const int max_v = std::max(8, col + width - val_col);
-      if (sel && menu.capturing && item >= SettingsItem::KeyLeft &&
-          item <= SettingsItem::KeyScores) {
-        if (term_.color_enabled()) {
-          canvas_.fg(2);
-        }
-        pad_text("press key...", max_v);
-      } else {
-        pad_text(val, max_v);
-      }
-    }
+    pad_text("", width);
     canvas_.reset();
+    ++y;
   }
 
   const int foot = sz.rows - 2;
@@ -1278,7 +1420,7 @@ void Renderer::draw_settings(const SettingsMenuView& menu) {
     canvas_.reset();
   };
 
-  // ASCII only — arrow / em-dash glyphs break canvas-vs-terminal columns.
+  // ASCII only - arrow / em-dash glyphs break canvas-vs-terminal columns.
   if (menu.confirming_clear) {
     pad_foot(foot, "Type yes + Enter to wipe ALL boards - Esc cancels");
   } else if (menu.capturing) {

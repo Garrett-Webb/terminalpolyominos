@@ -6,6 +6,33 @@
 namespace tp {
 namespace {
 
+// xterm 256 cube index 16..231 -> r,g,b in 0..5. Reject near-black / muddy tones so
+// solid cells and dim-capable ghosts stay visible on dark / transparent terminals.
+[[nodiscard]] bool freak_256_ok(int idx) {
+  if (idx < 16 || idx > 231) {
+    return false;
+  }
+  const int o = idx - 16;
+  const int r = o / 36;
+  const int g = (o / 6) % 6;
+  const int b = o % 6;
+  const int sum = r + g + b;
+  const int mx = std::max(r, std::max(g, b));
+  // Skip dark cube corners and weak pastels (e.g. (0,0,4), (1,1,1)).
+  return sum >= 6 && mx >= 3;
+}
+
+[[nodiscard]] int freak_256_from_hash(std::uint32_t h) {
+  const int start = static_cast<int>(h % 216);
+  for (int i = 0; i < 216; ++i) {
+    const int idx = 16 + ((start + i) % 216);
+    if (freak_256_ok(idx)) {
+      return idx;
+    }
+  }
+  return 51;  // cyan fallback
+}
+
 // Orientations with y+ down. Values are offsets from the piece origin (x,y).
 // Layouts follow common SRS shapes (I uses a 4-wide bar; O a 2x2).
 constexpr Offset kCells[7][4][4] = {
@@ -189,8 +216,7 @@ int piece_color(const PieceSpec& spec, bool freak_colors, bool colors_256) {
     h *= kPrime;
   }
   if (colors_256) {
-    // Skip darkest cube corners; avoid pure white flash index 15.
-    return 20 + static_cast<int>(h % 211);  // 20..230
+    return freak_256_from_hash(h);
   }
   return 8 + static_cast<int>(h % 8);  // bright 8–15
 }

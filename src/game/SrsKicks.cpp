@@ -77,8 +77,8 @@ void copy_n(const Kick* src, int count, Kick out[kMaxKickTests]) {
 }
 
 // Freestyle kicks for arbitrary polyominoes (≤4×4). Tries small wall/floor/ceiling
-// offsets before larger ones. CW prefers leftward first; CCW prefers rightward —
-// similar bias to JLSTZ — and floor (y+) before ceiling (y−).
+// offsets before larger ones. CW prefers leftward first; CCW prefers rightward -
+// similar bias to JLSTZ - and floor (y+) before ceiling (y−).
 int fill_custom_kicks(bool cw, Kick out[kMaxKickTests]) {
   const int hx = cw ? -1 : 1;  // preferred horizontal sign
   int n = 0;
@@ -194,7 +194,7 @@ SpinType classify_tspin(const Board& board, int piece_x, int piece_y, int rotati
   bool front0 = false;
   bool front1 = false;
   switch (r) {
-    case 0:  // stem up → front is top pair
+    case 0:  // stem up -> front is top pair
       front0 = a;
       front1 = b;
       break;

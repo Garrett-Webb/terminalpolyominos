@@ -38,8 +38,8 @@ enum class Randomizer : std::uint8_t {
 
 enum class PlayMode : std::uint8_t {
   Endless = 0,
-  Marathon = 1,  // clear 150 lines → win
-  Sprint = 2,    // clear 40 lines → win
+  Marathon = 1,  // clear 150 lines -> win
+  Sprint = 2,    // clear 40 lines -> win
 };
 
 inline constexpr int kPlayModeCount = 3;
@@ -166,7 +166,7 @@ struct GameConfig {
   int hard_drop_flash_ms = kHardDropFlashMs;
   Randomizer randomizer = Randomizer::SevenBag;
   PlayMode play_mode = PlayMode::Endless;
-  // Hash custom/funk/freak shapes onto palette indices. Off → white.
+  // Hash custom/funk/freak shapes onto palette indices. Off -> white.
   bool freak_colors = true;
   // When true, piece colors use 256-color indices; else classic 16-color.
   bool colors_256 = true;

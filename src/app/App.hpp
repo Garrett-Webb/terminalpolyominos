@@ -31,6 +31,7 @@ class App {
   void open_scores();
   void close_scores();
   void apply_settings(const Settings& s);
+  void setup_keyboard();
   void start_game();
   void on_game_over_edge();
   void handle_name_key(const KeyEvent& ev);

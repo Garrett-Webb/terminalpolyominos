@@ -385,7 +385,7 @@ HighScores HighScores::parse(const std::string& text) {
 
 std::string HighScores::serialize() const {
   std::ostringstream out;
-  out << "# terminalpolyominos high scores — top " << kHighScoreBoardMax
+  out << "# terminalpolyominos high scores - top " << kHighScoreBoardMax
       << " per randomizer × play mode\n"
       << "# Fields: score level lines lines_per_level name unix_time [elapsed_ms]\n"
       << "# Sections: 7bag | 7bag:marathon | 7bag:sprint | …\n";

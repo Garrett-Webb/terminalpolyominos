@@ -12,7 +12,7 @@ struct Settings {
   InputConfig input{};
   GameConfig game{};
 
-  // Load from disk (XDG .tpolyrc, then legacy ~/.tpolyrc). Missing file → defaults
+  // Load from disk (XDG .tpolyrc, then legacy ~/.tpolyrc). Missing file -> defaults
   // and write a fresh XDG rc with comments (like many terminal apps).
   static Settings load_or_create();
 

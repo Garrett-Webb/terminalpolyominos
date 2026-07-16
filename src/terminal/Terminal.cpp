@@ -1,10 +1,14 @@
 #include "terminal/Terminal.hpp"
 
 #include <cerrno>
+#include <chrono>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
+#include <string_view>
+#include <thread>
 
 #include <poll.h>
 #include <sys/ioctl.h>
@@ -17,16 +21,27 @@ Terminal* g_active = nullptr;
 termios g_original{};
 bool g_have_original = false;
 bool g_alt_screen = false;
+bool g_keyboard_pushed = false;
+
+void write_raw(const char* seq) {
+  (void)!::write(STDOUT_FILENO, seq, std::strlen(seq));
+}
+
+void pop_keyboard_mode() {
+  if (g_keyboard_pushed) {
+    write_raw("\x1b[<u");
+    g_keyboard_pushed = false;
+  }
+}
 
 void restore_tty_now() {
+  pop_keyboard_mode();
   if (g_alt_screen) {
     // Leave alt screen + show cursor + reset attrs.
-    const char* seq = "\x1b[?1049l\x1b[?25h\x1b[0m";
-    (void)!write(STDOUT_FILENO, seq, std::strlen(seq));
+    write_raw("\x1b[?1049l\x1b[?25h\x1b[0m");
     g_alt_screen = false;
   } else {
-    const char* seq = "\x1b[?25h\x1b[0m";
-    (void)!write(STDOUT_FILENO, seq, std::strlen(seq));
+    write_raw("\x1b[?25h\x1b[0m");
   }
   if (g_have_original) {
     (void)tcsetattr(STDIN_FILENO, TCSAFLUSH, &g_original);
@@ -141,6 +156,7 @@ Terminal::~Terminal() {
   if (!ok_) {
     return;
   }
+  disable_keyboard_protocol();
   if (alt_screen_) {
     leave_alt_screen();
   }
@@ -164,7 +180,7 @@ TermSize Terminal::size() const {
 
 void Terminal::write(std::string_view s) {
   // Write every byte. Short writes and EINTR/EAGAIN must be retried, otherwise
-  // the tail of the frame is silently dropped and the display corrupts —
+  // the tail of the frame is silently dropped and the display corrupts -
   // especially with macOS's small (~1KB) tty output buffer vs a full frame.
   const char* data = s.data();
   std::size_t remaining = s.size();
@@ -214,6 +230,130 @@ bool Terminal::read_byte(unsigned char& ch) {
     return true;
   }
   return false;
+}
+
+bool Terminal::detect_keyboard_protocol(int timeout_ms) {
+  if (!ok_) {
+    return false;
+  }
+  // Query progressive flags, then primary DA. Supported terminals answer flags
+  // before (or along with) DA; unsupported answer only DA.
+  write("\x1b[?u");
+  write("\x1b[c");
+  flush();
+
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+  std::string buf;
+  buf.reserve(64);
+  bool saw_flags = false;
+  bool saw_da = false;
+
+  auto consume = [&] {
+    while (buf.size() >= 3) {
+      const auto esc = buf.find("\x1b[");
+      if (esc == std::string::npos) {
+        buf.clear();
+        return;
+      }
+      if (esc > 0) {
+        buf.erase(0, esc);
+      }
+      // Find final byte.
+      std::size_t i = 2;
+      while (i < buf.size() && (buf[i] < 0x40 || static_cast<unsigned char>(buf[i]) > 0x7e)) {
+        ++i;
+      }
+      if (i >= buf.size()) {
+        return;  // incomplete
+      }
+      const char final_b = buf[i];
+      const std::string_view body(buf.data() + 2, i - 2);
+      if (!body.empty() && body[0] == '?' && final_b == 'u') {
+        saw_flags = true;
+      } else if (!body.empty() && body[0] == '?' && final_b == 'c') {
+        saw_da = true;
+      }
+      buf.erase(0, i + 1);
+      if (saw_da) {
+        return;
+      }
+    }
+  };
+
+  while (std::chrono::steady_clock::now() < deadline && !saw_da) {
+    unsigned char ch = 0;
+    if (read_byte(ch)) {
+      buf.push_back(static_cast<char>(ch));
+      consume();
+      continue;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+  }
+  consume();
+  return saw_flags;
+}
+
+bool Terminal::enable_keyboard_protocol() {
+  if (!ok_) {
+    return false;
+  }
+  disable_keyboard_protocol();
+
+  char push[32];
+  const int n = std::snprintf(push, sizeof(push), "\x1b[>%du", kKittyKbFlags);
+  if (n > 0) {
+    write(std::string_view(push, static_cast<std::size_t>(n)));
+  }
+  flush();
+  g_keyboard_pushed = true;
+
+  // Verify flags 2 and 8 stuck.
+  write("\x1b[?u");
+  flush();
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
+  std::string buf;
+  int flags = -1;
+  while (std::chrono::steady_clock::now() < deadline && flags < 0) {
+    unsigned char ch = 0;
+    if (!read_byte(ch)) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      continue;
+    }
+    buf.push_back(static_cast<char>(ch));
+    // Expect CSI ? <n> u
+    if (buf.size() >= 4 && buf[0] == '\x1b' && buf[1] == '[') {
+      if (buf.back() == 'u' && buf[2] == '?') {
+        flags = std::atoi(buf.c_str() + 3);
+        break;
+      }
+      if (buf.back() >= 0x40 && buf.back() <= 0x7e && buf.back() != 'u') {
+        buf.clear();  // unrelated sequence
+      }
+    } else if (buf.size() > 32) {
+      buf.clear();
+    }
+  }
+
+  constexpr int kNeed = 2 | 8;
+  if (flags < 0 || (flags & kNeed) != kNeed) {
+    disable_keyboard_protocol();
+    keyboard_enhanced_ = false;
+    return false;
+  }
+
+  keyboard_enhanced_ = true;
+  return true;
+}
+
+void Terminal::disable_keyboard_protocol() {
+  if (g_keyboard_pushed) {
+    write("\x1b[<u");
+    flush();
+    g_keyboard_pushed = false;
+  }
+  keyboard_enhanced_ = false;
 }
 
 void Terminal::clear_screen() { write("\x1b[2J\x1b[H"); }
@@ -290,6 +430,7 @@ void Terminal::enter_alt_screen() {
 }
 
 void Terminal::leave_alt_screen() {
+  disable_keyboard_protocol();
   write("\x1b[?1049l");
   alt_screen_ = false;
   g_alt_screen = false;

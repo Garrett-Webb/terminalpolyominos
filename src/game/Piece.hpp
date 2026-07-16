@@ -12,7 +12,8 @@ void piece_cells(PieceType type, int rotation, Offset out[4]);
 
 // Palette index for classic pieces. colors_256 selects 256 vs 16-color map.
 int piece_color(PieceType type, bool colors_256 = true);
-// Custom: hash into palette when freak_colors; else white (15 / 7).
+// Custom: hash into mid/bright palette when freak_colors; else white (15 / 7).
+// 256-color: xterm cube only, skips dark corners (r+g+b >= 6 and max >= 3).
 int piece_color(const PieceSpec& spec, bool freak_colors = true, bool colors_256 = true);
 
 // White flash index for the active palette.

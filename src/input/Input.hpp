@@ -11,6 +11,12 @@
 
 namespace tp {
 
+enum class KeyboardProtocol : std::uint8_t {
+  Auto = 0,  // detect Kitty protocol; fall back to legacy
+  Kitty,     // prefer Kitty press/release; fall back if unsupported
+  Legacy,    // never query / push - OS-repeat model
+};
+
 // One physical key: arrow/special (`Key::Left` …) or a printable char (`Key::Char`).
 struct KeySpec {
   Key key = Key::None;
@@ -49,11 +55,13 @@ struct Keybinds {
 };
 
 struct InputConfig {
-  // While a direction is held (after OS key-repeat confirms), step this often.
-  int move_interval_ms = 50;
+  // Auto-repeat rate while a direction is held (after DAS / OS-repeat arms ARR).
+  int move_interval_ms = 35;
   int soft_drop_interval_ms = 35;
-  // No key-up in terminals — treat direction as released after this silence.
-  int release_ms = 120;
+  // Legacy: silence before treating a direction as released.
+  // Enhanced (Kitty): delay after the first step before ARR starts (DAS).
+  int release_ms = 90;
+  KeyboardProtocol keyboard_protocol = KeyboardProtocol::Auto;
   Keybinds keys{};
 };
 
@@ -65,6 +73,10 @@ class Input {
 
   void set_config(InputConfig config) { config_ = config; }
   void reset();
+
+  // When true: press/release sticks (Kitty protocol). When false: legacy silence model.
+  void set_key_up_aware(bool on);
+  [[nodiscard]] bool key_up_aware() const { return key_up_aware_; }
 
   void on_key(const KeyEvent& ev);
   void tick(int elapsed_ms);
@@ -78,22 +90,30 @@ class Input {
 
   struct Stick {
     bool held = false;
-    bool repeating = false;  // true after terminal key-repeat confirms a hold
-    int since_event_ms = 0;
-    int step_acc_ms = 0;
+    bool repeating = false;  // ARR active (legacy: after OS key-repeat; enhanced: after DAS)
+    int held_ms = 0;         // time since press (enhanced DAS)
+    int since_event_ms = 0;  // silence / keep-alive watchdog
+    int step_acc_ms = 0;     // ARR accumulator - only advanced while repeating
   };
 
   void clear_dirs();
   void press_dir(Dir dir);
+  void release_dir(Dir dir);
+  void repeat_dir(Dir dir);
   void tick_dir(Stick& stick, Dir dir, int elapsed_ms, int interval_ms);
   void queue(Action action);
   [[nodiscard]] static Action action_for(Dir dir);
+  [[nodiscard]] Stick* stick_for(Dir dir);
 
   InputConfig config_;
+  bool key_up_aware_ = false;
   Stick left_{};
   Stick right_{};
   Stick soft_{};
   std::vector<Action> out_;
 };
+
+[[nodiscard]] const char* keyboard_protocol_token(KeyboardProtocol p);
+[[nodiscard]] KeyboardProtocol parse_keyboard_protocol(std::string_view s);
 
 }  // namespace tp

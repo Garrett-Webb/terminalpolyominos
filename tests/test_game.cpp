@@ -209,7 +209,7 @@ void test_shape_gen_distribution() {
     TP_CHECK(bbox_ok(p));
     ++counts[p.n];
   }
-  // ~40% fours, ~30% threes/fives — allow a wide band for RNG variance.
+  // ~40% fours, ~30% threes/fives - allow a wide band for RNG variance.
   TP_CHECK(counts[4] > kDraws / 5);
   TP_CHECK(counts[4] < (kDraws * 3) / 5);
   TP_CHECK(counts[3] > kDraws / 10);
@@ -518,7 +518,7 @@ void test_srs_kick_table_code_coords() {
   TP_CHECK(has_diag);
   TP_CHECK(has_floor);
   TP_CHECK(has_ceil);
-  // CW (0→1) prefers left wall kick before right among the first few after (0,0).
+  // CW (0->1) prefers left wall kick before right among the first few after (0,0).
   TP_CHECK((out[1] == tp::Kick{-1, 0}));
   TP_CHECK((out[2] == tp::Kick{1, 0}));
 }
@@ -546,19 +546,36 @@ void test_custom_piece_color_hash() {
   const int on_a = tp::piece_color(bar, true, true);
   const int on_b = tp::piece_color(bar_shuffled, true, true);
   TP_CHECK(on_a == on_b);
-  TP_CHECK(on_a >= 20 && on_a <= 230);
+  TP_CHECK(on_a >= 16 && on_a <= 231);
+  // Reject near-black cube corners (sum of r,g,b in 0..5 must be >= 6, max >= 3).
+  {
+    const int o = on_a - 16;
+    const int r = o / 36;
+    const int g = (o / 6) % 6;
+    const int b = o % 6;
+    TP_CHECK(r + g + b >= 6);
+    TP_CHECK(std::max(r, std::max(g, b)) >= 3);
+  }
   TP_CHECK(tp::piece_color(bar, false, false) == 7);
   TP_CHECK(tp::piece_color(bar, false, true) == 15);
 
   // Different geometry should (usually) get a different bright color; at least
-  // stay in the 256-palette freak range.
+  // stay in the allowed 256-palette freak range.
   tp::PieceSpec tet = bar;
   tet.n = 3;
   tet.cells[0] = {0, 0};
   tet.cells[1] = {1, 0};
   tet.cells[2] = {0, 1};
   const int tet_c = tp::piece_color(tet, true, true);
-  TP_CHECK(tet_c >= 20 && tet_c <= 230);
+  TP_CHECK(tet_c >= 16 && tet_c <= 231);
+  {
+    const int o = tet_c - 16;
+    const int r = o / 36;
+    const int g = (o / 6) % 6;
+    const int b = o % 6;
+    TP_CHECK(r + g + b >= 6);
+    TP_CHECK(std::max(r, std::max(g, b)) >= 3);
+  }
 
   TP_CHECK(tp::piece_color(tp::PieceSpec::classic(tp::PieceType::T), true, true) ==
            tp::piece_color(tp::PieceType::T, true));
@@ -573,7 +590,7 @@ void test_custom_wall_kick_left() {
   tp::Game game(cfg);
   game.reset(1);
 
-  // Flat bar at x=0; upright column would occupy (0,1..3) which are filled → need +1 kick.
+  // Flat bar at x=0; upright column would occupy (0,1..3) which are filled -> need +1 kick.
   for (int y = 1; y <= 3; ++y) {
     game.set_cell_for_test(0, y);
   }
@@ -598,7 +615,7 @@ void test_custom_floor_kick() {
   tp::Game game(cfg);
   game.reset(1);
 
-  // Domino (0,0),(1,0) → CW upright (0,0),(0,1).
+  // Domino (0,0),(1,0) -> CW upright (0,0),(0,1).
   tp::PieceSpec s;
   s.kind = tp::PieceType::Custom;
   s.n = 2;
@@ -612,7 +629,7 @@ void test_custom_floor_kick() {
     game.set_cell_for_test(x, y + 1);
     game.set_cell_for_test(x, y - 1);
   }
-  // (0,+2) lands feet at y+3 — keep that row open.
+  // (0,+2) lands feet at y+3 - keep that row open.
 
   tp::ActivePiece p;
   p.spec = s;
@@ -633,7 +650,7 @@ void test_custom_ceiling_kick() {
   tp::Game game(cfg);
   game.reset(1);
 
-  // Upright domino (0,0),(0,1) → CW flat (0,0),(-1,0).
+  // Upright domino (0,0),(0,1) -> CW flat (0,0),(-1,0).
   tp::PieceSpec s;
   s.kind = tp::PieceType::Custom;
   s.n = 2;
@@ -672,7 +689,7 @@ void test_srs_i_wall_kick() {
   tp::Game game(cfg);
   game.reset(1);
 
-  // Block the basic 0→R placement so I must use the (-2,0) kick.
+  // Block the basic 0->R placement so I must use the (-2,0) kick.
   for (int y = 0; y < 4; ++y) {
     game.set_cell_for_test(7, y);
   }
@@ -697,7 +714,7 @@ void test_srs_jlstz_wall_kick() {
   tp::Game game(cfg);
   game.reset(1);
 
-  // T at left; block basic 0→R so kick (-1,0) is required.
+  // T at left; block basic 0->R so kick (-1,0) is required.
   const int y = 8;
   game.set_cell_for_test(2, y + 1);
 
@@ -736,7 +753,7 @@ void test_tspin_full_single() {
   p.spec = tp::PieceSpec::classic(tp::PieceType::T);
   p.x = 4;
   p.y = by - 2;  // 19
-  p.rotation = 1;  // R; CW → 2 (stem down)
+  p.rotation = 1;  // R; CW -> 2 (stem down)
   p.alive = true;
   game.set_active_for_test(p);
   game.apply(tp::Action::RotateCW);
@@ -745,7 +762,7 @@ void test_tspin_full_single() {
   TP_CHECK(game.state().active.y == by - 2);
 
   const int before = game.state().score;
-  // Grounded after rotate → lock delay.
+  // Grounded after rotate -> lock delay.
   game.tick(50);
   TP_CHECK(game.state().lines == 1);
   TP_CHECK(game.state().score == before + 800);
@@ -757,10 +774,10 @@ void test_tspin_mini_no_lines() {
   board.set(4, 9, tp::PieceType::I);   // front-left
   board.set(4, 11, tp::PieceType::I);  // back-left
   board.set(6, 11, tp::PieceType::I);  // back-right
-  // Not front-right (6,9) → Mini candidate.
+  // Not front-right (6,9) -> Mini candidate.
   TP_CHECK(tp::classify_tspin(board, /*px=*/4, /*py=*/9, /*rot=*/0, 0, 0) == tp::SpinType::Mini);
 
-  // Both fronts → Full.
+  // Both fronts -> Full.
   board.set(6, 9, tp::PieceType::I);
   TP_CHECK(tp::classify_tspin(board, 4, 9, 0, 0, 0) == tp::SpinType::Full);
 
@@ -796,7 +813,7 @@ void test_tspin_cancelled_by_move() {
   game.apply(tp::Action::RotateCW);
   TP_CHECK(game.state().active.rotation == 2);
 
-  // Sonic drop is a translate even when distance is 0 — clears last-rotate.
+  // Sonic drop is a translate even when distance is 0 - clears last-rotate.
   game.apply(tp::Action::SonicDrop);
 
   const int before = game.state().score;

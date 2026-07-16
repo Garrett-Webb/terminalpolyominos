@@ -90,7 +90,17 @@ SettingsMenuView SettingsMenu::view() const {
 }
 
 bool SettingsMenu::is_timing(SettingsItem item) {
-  return item <= SettingsItem::NextCount;
+  switch (item) {
+    case SettingsItem::MoveInterval:
+    case SettingsItem::SoftDropInterval:
+    case SettingsItem::ReleaseMs:
+    case SettingsItem::LockDelay:
+    case SettingsItem::LinesPerLevel:
+    case SettingsItem::NextCount:
+      return true;
+    default:
+      return false;
+  }
 }
 
 bool SettingsMenu::is_keybind(SettingsItem item) {
@@ -123,6 +133,17 @@ void SettingsMenu::adjust(int delta) {
   }
   if (item == SettingsItem::FreakColors) {
     draft_.game.freak_colors = !draft_.game.freak_colors;
+    mark_dirty();
+    return;
+  }
+  if (item == SettingsItem::KeyboardProtocol) {
+    const int n = 3;
+    int cur = static_cast<int>(draft_.input.keyboard_protocol);
+    cur = (cur + delta) % n;
+    if (cur < 0) {
+      cur += n;
+    }
+    draft_.input.keyboard_protocol = static_cast<KeyboardProtocol>(cur);
     mark_dirty();
     return;
   }
@@ -182,13 +203,21 @@ void SettingsMenu::mark_dirty() {
 
 void SettingsMenu::move_sel(int delta) {
   selected_ = (selected_ + delta + kSettingsItemCount) % kSettingsItemCount;
-  // Keep selection roughly in view (renderer uses ~12 visible rows).
-  constexpr int kVisible = 12;
-  if (selected_ < scroll_) {
-    scroll_ = selected_;
-  } else if (selected_ >= scroll_ + kVisible) {
-    scroll_ = selected_ - kVisible + 1;
+}
+
+void SettingsMenu::ensure_visible(int viewport_rows) {
+  if (viewport_rows < 1) {
+    viewport_rows = 1;
   }
+  const int sel_v = settings_item_visual_row(selected_);
+  const int total = settings_list_rows();
+  if (sel_v < scroll_) {
+    scroll_ = sel_v;
+  } else if (sel_v >= scroll_ + viewport_rows) {
+    scroll_ = sel_v - viewport_rows + 1;
+  }
+  const int max_scroll = std::max(0, total - viewport_rows);
+  scroll_ = std::max(0, std::min(scroll_, max_scroll));
 }
 
 void SettingsMenu::reset_defaults() {
@@ -208,6 +237,10 @@ void SettingsMenu::activate() {
     return;
   }
   if (item == SettingsItem::FreakColors) {
+    adjust(1);
+    return;
+  }
+  if (item == SettingsItem::KeyboardProtocol) {
     adjust(1);
     return;
   }
@@ -309,17 +342,31 @@ void SettingsMenu::capture(const KeyEvent& ev) {
 }
 
 void SettingsMenu::on_key(const KeyEvent& ev) {
+  // Capture / confirm / activate are press-only.
   if (confirming_clear_) {
+    if (ev.type != KeyEventType::Press) {
+      return;
+    }
     capture_clear(ev);
     return;
   }
   if (capturing_) {
+    if (ev.type != KeyEventType::Press) {
+      return;
+    }
     capture(ev);
     return;
   }
 
+  // Kitty hold: accept Press + Repeat for browse / adjust. Ignore Release.
+  if (ev.type != KeyEventType::Press && ev.type != KeyEventType::Repeat) {
+    return;
+  }
+
   if (ev.key == Key::Esc) {
-    result_ = Result::Back;
+    if (ev.type == KeyEventType::Press) {
+      result_ = Result::Back;
+    }
     return;
   }
   if (ev.key == Key::Up) {
@@ -339,7 +386,9 @@ void SettingsMenu::on_key(const KeyEvent& ev) {
     return;
   }
   if (ev.key == Key::Enter) {
-    activate();
+    if (ev.type == KeyEventType::Press) {
+      activate();
+    }
     return;
   }
   if (ev.key == Key::Char) {

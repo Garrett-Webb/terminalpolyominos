@@ -148,6 +148,10 @@ void apply_kv(Settings& s, const std::string& key, const std::string& value) {
     }
     return;
   }
+  if (key == "keyboard_protocol") {
+    s.input.keyboard_protocol = parse_keyboard_protocol(trim(value));
+    return;
+  }
 
   int n = 0;
   if (!parse_int(value, n) || n < 0) {
@@ -242,8 +246,10 @@ std::string Settings::serialize() const {
       << "   # endless | marathon | sprint\n"
       << "freak_colors=" << (game.freak_colors ? "on" : "off")
       << "   # bright hashed colors for custom pieces\n"
+      << "keyboard_protocol=" << keyboard_protocol_token(input.keyboard_protocol)
+      << "   # auto | on | off  (Kitty press/release when supported)\n"
       << "#\n"
-      << "# Keys — comma-separated tokens (left/right/up/down/space/enter/esc, or a letter).\n"
+      << "# Keys - comma-separated tokens (left/right/up/down/space/enter/esc, or a letter).\n"
       << "# Ctrl+C always quits. Invalid tokens are ignored; empty lists keep defaults.\n"
       << "key_left=" << k.format_list(k.left) << '\n'
       << "key_right=" << k.format_list(k.right) << '\n'
@@ -327,7 +333,8 @@ Settings Settings::load_or_create() {
       text.find("play_mode=") == std::string::npos ||
       text.find("randomizer=") == std::string::npos ||
       text.find("next_count=") == std::string::npos ||
-      text.find("freak_colors=") == std::string::npos) {
+      text.find("freak_colors=") == std::string::npos ||
+      text.find("keyboard_protocol=") == std::string::npos) {
     (void)s.save();
   }
   return s;

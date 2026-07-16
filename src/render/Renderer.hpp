@@ -13,8 +13,8 @@
 
 namespace tp {
 
-inline constexpr int kMinTermRows = 26;
-inline constexpr int kMinTermCols = 62;
+inline constexpr int kMinTermRows = 24;
+inline constexpr int kMinTermCols = 68;
 
 struct Layout {
   int scale = 1;
@@ -47,14 +47,14 @@ class Renderer {
 
   void draw_title(const HighScores& scores, Randomizer current, PlayMode play_mode,
                   const Keybinds& keybinds);
-  void draw_scores(const HighScores& scores, Randomizer viewing);
-  void draw_too_small();
-  void draw_game(const GameState& state, const GameConfig& config,
+  void draw_scores(const HighScores& scores, Randomizer viewing, const Keybinds& keybinds);
+  void draw_too_small(const Keybinds& keybinds);
+  void draw_game(const GameState& state, const GameConfig& config, const Keybinds& keybinds,
                  const GameOverExtras* game_over = nullptr);
   void draw_settings(const SettingsMenuView& menu);
 
   // Next draw starts from a blank grid (needed when switching screens that
-  // do not repaint every cell — e.g. settings → title).
+  // do not repaint every cell - e.g. settings -> title).
   void invalidate();
 
   [[nodiscard]] static Layout compute_layout(TermSize sz);

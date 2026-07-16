@@ -116,6 +116,22 @@ void test_play_mode_parse() {
   TP_CHECK(tp::Settings::parse(s.serialize()).game.play_mode == tp::PlayMode::Marathon);
 }
 
+void test_keyboard_protocol_parse() {
+  TP_CHECK(tp::Settings{}.input.keyboard_protocol == tp::KeyboardProtocol::Auto);
+  TP_CHECK(tp::Settings::parse("keyboard_protocol=legacy\n").input.keyboard_protocol ==
+           tp::KeyboardProtocol::Legacy);
+  TP_CHECK(tp::Settings::parse("keyboard_protocol=kitty\n").input.keyboard_protocol ==
+           tp::KeyboardProtocol::Kitty);
+  TP_CHECK(tp::Settings::parse("keyboard_protocol=off\n").input.keyboard_protocol ==
+           tp::KeyboardProtocol::Legacy);
+  TP_CHECK(tp::Settings::parse("keyboard_protocol=on\n").input.keyboard_protocol ==
+           tp::KeyboardProtocol::Kitty);
+  tp::Settings s;
+  s.input.keyboard_protocol = tp::KeyboardProtocol::Legacy;
+  TP_CHECK(tp::Settings::parse(s.serialize()).input.keyboard_protocol ==
+           tp::KeyboardProtocol::Legacy);
+}
+
 void test_key_scores_parse() {
   const tp::Settings s =
       tp::Settings::parse("key_scores=j\n");
@@ -142,6 +158,7 @@ int main() {
   test_next_count_parse();
   test_freak_colors_parse();
   test_play_mode_parse();
+  test_keyboard_protocol_parse();
   test_key_scores_parse();
   test_ctrl_c_always_quits();
   return tp::test::summary("tp_settings_tests");

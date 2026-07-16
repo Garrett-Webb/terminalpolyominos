@@ -24,7 +24,7 @@ enum class SpinType : std::uint8_t {
 };
 
 // Kick tests in *code* coordinates (y+ down).
-// Classic: SRS JLSTZ / I kick tables. O → (0,0) only.
+// Classic: SRS JLSTZ / I kick tables. O -> (0,0) only.
 // Custom: freestyle wall/floor/ceiling kicks (no spin scoring).
 int srs_kick_tests(PieceType kind, int from_rot, int to_rot, Kick out[kMaxKickTests]);
 

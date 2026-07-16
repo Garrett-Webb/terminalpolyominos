@@ -46,6 +46,24 @@ void App::apply_settings(const Settings& s) {
   input_.set_config(settings_.input);
   input_.reset();
   game_.set_config(gameplay_config(settings_, term_));
+  setup_keyboard();
+}
+
+void App::setup_keyboard() {
+  const KeyboardProtocol pref = settings_.input.keyboard_protocol;
+  if (pref == KeyboardProtocol::Legacy) {
+    term_.disable_keyboard_protocol();
+    input_.set_key_up_aware(false);
+    return;
+  }
+
+  // Prefer enhanced when Auto or Kitty; fall back silently if unsupported.
+  if (term_.detect_keyboard_protocol(/*timeout_ms=*/80) && term_.enable_keyboard_protocol()) {
+    input_.set_key_up_aware(true);
+    return;
+  }
+  term_.disable_keyboard_protocol();
+  input_.set_key_up_aware(false);
 }
 
 void App::open_settings() {
@@ -140,6 +158,9 @@ void App::on_game_over_edge() {
 }
 
 void App::handle_name_key(const KeyEvent& ev) {
+  if (ev.type != KeyEventType::Press) {
+    return;
+  }
   auto finish_edit = [&] {
     pending_name_edit_ = false;
     pending_rank_ = 0;
@@ -178,7 +199,14 @@ void App::handle_name_key(const KeyEvent& ev) {
 }
 
 void App::handle_scores_key(const KeyEvent& ev) {
+  if (ev.type != KeyEventType::Press) {
+    return;
+  }
   if (ev.key == Key::Esc) {
+    close_scores();
+    return;
+  }
+  if (settings_.input.keys.action_for(ev) == Action::Quit) {
     close_scores();
     return;
   }
@@ -196,9 +224,7 @@ void App::handle_scores_key(const KeyEvent& ev) {
   }
   if (ev.key == Key::Char) {
     const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ev.ch)));
-    if (c == 'q') {
-      close_scores();
-    } else if (c == 'h' || c == '[') {
+    if (c == 'h' || c == '[') {
       scores_view_ = HighScores::cycle_randomizer(scores_view_, -1);
       renderer_.invalidate();
       ui_dirty_ = true;
@@ -280,6 +306,13 @@ void App::pump_keys() {
       return;
     }
 
+    // Title / scores / name-edit: press only. Settings accepts Repeat for hold-nav.
+    const bool ui_press_only =
+        screen_ == Screen::Title || screen_ == Screen::Scores || pending_name_edit_;
+    if (ui_press_only && ev.type != KeyEventType::Press) {
+      continue;
+    }
+
     if (screen_ == Screen::Settings) {
       menu_.on_key(ev);
       handle_settings_result();
@@ -306,12 +339,13 @@ void App::pump_keys() {
     }
 
     // Title / game-over: Enter (and Space on title) always start/retry before keybinds.
-    if (screen_ == Screen::Title &&
+    // Press only - with Kitty protocol, Enter Release after name-save must not restart.
+    if (ev.type == KeyEventType::Press && screen_ == Screen::Title &&
         (ev.key == Key::Enter || ev.key == Key::Space)) {
       start_game();
       continue;
     }
-    if (screen_ == Screen::Playing &&
+    if (ev.type == KeyEventType::Press && screen_ == Screen::Playing &&
         (game_.state().phase == Phase::GameOver || game_.state().phase == Phase::Finished) &&
         ev.key == Key::Enter) {
       start_game();
@@ -331,6 +365,7 @@ void App::pump_keys() {
 int App::run() {
   term_.enter_alt_screen();
   term_.hide_cursor();
+  setup_keyboard();
 
   using clock = std::chrono::steady_clock;
   auto prev = clock::now();
@@ -399,14 +434,15 @@ int App::run() {
 
     if (need_draw) {
       if (!size_ok) {
-        renderer_.draw_too_small();
+        renderer_.draw_too_small(settings_.input.keys);
       } else if (screen_ == Screen::Title) {
         renderer_.draw_title(scores_, settings_.game.randomizer, settings_.game.play_mode,
                              settings_.input.keys);
       } else if (screen_ == Screen::Settings) {
+        menu_.ensure_visible(settings_viewport_rows(sz.rows));
         renderer_.draw_settings(menu_.view());
       } else if (screen_ == Screen::Scores) {
-        renderer_.draw_scores(scores_, scores_view_);
+        renderer_.draw_scores(scores_, scores_view_, settings_.input.keys);
       } else {
         GameOverExtras extras;
         const GameOverExtras* extras_ptr = nullptr;
@@ -420,7 +456,7 @@ int App::run() {
           extras.mode = pending_mode_;
           extras_ptr = &extras;
         }
-        renderer_.draw_game(game_.state(), game_.config(), extras_ptr);
+        renderer_.draw_game(game_.state(), game_.config(), settings_.input.keys, extras_ptr);
       }
       ui_dirty_ = false;
     }

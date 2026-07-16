@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(terminalpolyominos
-  VERSION 0.5.0
+  VERSION 0.5.1
   DESCRIPTION "Lightweight full-featured polyomino stacking game for Unix terminals"
   LANGUAGES CXX)
 
@@ -32,6 +32,7 @@ add_executable(terminalpolyominos
   src/app/App.cpp)
 target_include_directories(terminalpolyominos PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(terminalpolyominos PRIVATE tp_game)
+target_compile_definitions(terminalpolyominos PRIVATE "TP_VERSION=\"${PROJECT_VERSION}\"")
 target_compile_options(terminalpolyominos PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 include(GNUInstallDirs)

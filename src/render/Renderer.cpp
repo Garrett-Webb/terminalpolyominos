@@ -10,6 +10,10 @@
 #include <string>
 #include <string_view>
 
+#ifndef TP_VERSION
+#define TP_VERSION "0.0.0"
+#endif
+
 namespace tp {
 namespace {
 
@@ -483,7 +487,7 @@ void Renderer::draw_title(const HighScores& scores, Randomizer current, PlayMode
   for (std::string_view row : kLogo) {
     pad_line(y++, row);
   }
-  pad_line(y++, "terminalpolyominos");
+  pad_line(y++, "terminalpolyominos v" TP_VERSION);
   canvas_.reset();
 
   pad_line(y++, "");

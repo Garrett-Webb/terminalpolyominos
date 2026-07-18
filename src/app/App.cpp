@@ -13,7 +13,7 @@ GameConfig gameplay_config(const Settings& settings, const Terminal& term) {
   GameConfig cfg = settings.game;
   cfg.colors_256 = term.colors_256();
   if (!term.color_enabled()) {
-    cfg.hard_drop_flash_ms = 0;
+    cfg.piece_lock_flash_ms = 0;
   }
   return cfg;
 }

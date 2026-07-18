@@ -21,7 +21,7 @@ the CPU.
 - Six piece randomizers - from classic 7-bag to generated “freak” polyominoes
 - Play modes: **Endless**, **Marathon** (150 lines), **Sprint** (40 lines)
 - **Local high scores** per randomizer × mode (`h` on title; `~/.local/share/tpoly/scores`)
-- NEXT queue length 1–5; line-clear and hard-drop flash polish
+- NEXT queue length 1–5; line-clear and piece-lock flash polish
 - **256-color** piece palette when `TERM` supports it (orange L / yellow O); 16-color fallback; `NO_COLOR` / `TERM=dumb` respected
 - Config under `~/.config/tpoly/.tpolyrc` (XDG)
 

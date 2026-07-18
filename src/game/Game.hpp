@@ -33,7 +33,7 @@ struct GameState {
   // While > 0, matching rows in clear_rows flash before collapsing.
   int clear_flash_ms = 0;
   std::array<bool, kBoardHeight> clear_rows{};
-  // Hard-drop lock flash: white cells for the just-locked piece.
+  // White flash on the just-locked piece (any lock, not only hard drop).
   int lock_flash_ms = 0;
   ActivePiece lock_flash{};
   // Pieces locked this game (indexed by PieceType, including Custom).
@@ -77,8 +77,8 @@ class Game {
   void soft_drop_one();
   void sonic_drop();
   void hard_drop();
-  void lock_active(bool from_hard_drop = false);
-  void finish_hard_drop_flash();
+  void lock_active();
+  void finish_lock_flash();
   void begin_line_clear_anim();
   void finish_line_clear();
   void spawn_next();

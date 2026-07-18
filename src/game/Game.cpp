@@ -220,7 +220,7 @@ void Game::tick(int elapsed_ms) {
     mark_dirty();
     if (state_.lock_flash_ms <= 0) {
       state_.lock_flash_ms = 0;
-      finish_hard_drop_flash();
+      finish_lock_flash();
     }
     return;
   }
@@ -446,7 +446,7 @@ void Game::hard_drop() {
   }
   clear_rotate_flag();
   refresh_ghost();
-  lock_active(/*from_hard_drop=*/true);
+  lock_active();
 }
 
 SpinType Game::detect_tspin_on_lock() const {
@@ -457,7 +457,7 @@ SpinType Game::detect_tspin_on_lock() const {
                         last_kick_dx_, last_kick_dy_);
 }
 
-void Game::lock_active(bool from_hard_drop) {
+void Game::lock_active() {
   if (!state_.active.alive) {
     return;
   }
@@ -497,32 +497,29 @@ void Game::lock_active(bool from_hard_drop) {
 
   // Always run scoring path so 0-line locks reset combo (B2B chain stays).
   const bool has_clear = pending_clear_count_ > 0;
-  const bool has_spin = spin != SpinType::None;
 
-  if (from_hard_drop && config_.hard_drop_flash_ms > 0) {
+  add_lock_score(pending_clear_count_, pending_spin_);
+  pending_spin_ = SpinType::None;
+
+  if (config_.piece_lock_flash_ms > 0) {
     state_.lock_flash = flashed;
     state_.lock_flash.alive = true;
-    state_.lock_flash_ms = config_.hard_drop_flash_ms;
-    add_lock_score(pending_clear_count_, pending_spin_);
-    pending_spin_ = SpinType::None;
+    state_.lock_flash_ms = config_.piece_lock_flash_ms;
     mark_dirty();
     return;
   }
 
-  add_lock_score(pending_clear_count_, pending_spin_);
-  pending_spin_ = SpinType::None;
   if (has_clear) {
     begin_line_clear_anim();
     return;
   }
-  (void)has_spin;
 
   state_.hold_used = false;
   spawn_next();
   mark_dirty();
 }
 
-void Game::finish_hard_drop_flash() {
+void Game::finish_lock_flash() {
   state_.lock_flash = {};
   state_.lock_flash_ms = 0;
   if (pending_clear_count_ > 0) {

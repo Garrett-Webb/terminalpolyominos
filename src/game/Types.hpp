@@ -14,7 +14,7 @@ inline constexpr int kNextQueueDefault = 3;
 inline constexpr int kLinesPerLevel = 10;
 inline constexpr int kLockDelayMs = 500;
 inline constexpr int kClearFlashMs = 100;  // white flash before rows collapse
-inline constexpr int kHardDropFlashMs = 100;  // white flash on hard-drop lock (color only)
+inline constexpr int kLockFlashMs = 100;   // white flash when a piece locks (color only)
 inline constexpr int kMaxPieceCells = 5;
 inline constexpr int kMaxBagSize = 25;
 
@@ -162,8 +162,8 @@ struct GameConfig {
   int next_count = kNextQueueDefault;
   // 0 = collapse instantly (useful in tests).
   int clear_flash_ms = kClearFlashMs;
-  // 0 = no hard-drop flash (also forced off when color is disabled).
-  int hard_drop_flash_ms = kHardDropFlashMs;
+  // 0 = no piece lock flash (also forced off when color is disabled).
+  int piece_lock_flash_ms = kLockFlashMs;
   Randomizer randomizer = Randomizer::SevenBag;
   PlayMode play_mode = PlayMode::Endless;
   // Hash custom/funk/freak shapes onto palette indices. Off -> white.

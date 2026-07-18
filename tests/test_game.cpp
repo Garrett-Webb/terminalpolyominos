@@ -268,7 +268,7 @@ void test_custom_rotation_stays_connected() {
 void test_custom_spawn_rotate_hold() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   cfg.randomizer = tp::Randomizer::Freak;
   tp::Game game(cfg);
   game.reset(3);
@@ -288,7 +288,7 @@ void test_custom_spawn_rotate_hold() {
 void test_next_queue_length() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   cfg.next_count = 5;
   tp::Game game(cfg);
   game.reset(1);
@@ -339,7 +339,7 @@ void test_piece_cells_count() {
 void test_soft_and_hard_drop_scoring() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   tp::Game game(cfg);
   game.reset(7);
   const int before = game.state().score;
@@ -369,7 +369,7 @@ void test_sonic_drop_lands_without_lock() {
 void test_line_clear_scoring_and_level() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   tp::Game game(cfg);
   game.reset(1);
   for (int y = tp::kBoardHeight - 4; y < tp::kBoardHeight; ++y) {
@@ -392,7 +392,7 @@ void test_level_up() {
   tp::GameConfig cfg;
   cfg.lines_per_level = 10;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   tp::Game game(cfg);
   game.reset(1);
   for (int i = 0; i < 10; ++i) {
@@ -586,7 +586,7 @@ void test_custom_piece_color_hash() {
 void test_custom_wall_kick_left() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   tp::Game game(cfg);
   game.reset(1);
 
@@ -611,7 +611,7 @@ void test_custom_wall_kick_left() {
 void test_custom_floor_kick() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   tp::Game game(cfg);
   game.reset(1);
 
@@ -646,7 +646,7 @@ void test_custom_floor_kick() {
 void test_custom_ceiling_kick() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   tp::Game game(cfg);
   game.reset(1);
 
@@ -685,7 +685,7 @@ void test_custom_ceiling_kick() {
 void test_srs_i_wall_kick() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   tp::Game game(cfg);
   game.reset(1);
 
@@ -710,7 +710,7 @@ void test_srs_i_wall_kick() {
 void test_srs_jlstz_wall_kick() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   tp::Game game(cfg);
   game.reset(1);
 
@@ -734,7 +734,7 @@ void test_srs_jlstz_wall_kick() {
 void test_tspin_full_single() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   cfg.lock_delay_ms = 50;
   tp::Game game(cfg);
   game.reset(1);
@@ -789,7 +789,7 @@ void test_tspin_mini_no_lines() {
 void test_tspin_cancelled_by_move() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   cfg.lock_delay_ms = 50;
   tp::Game game(cfg);
   game.reset(1);
@@ -844,7 +844,7 @@ void lock_filled_quad(tp::Game& game) {
 void test_b2b_quad() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   cfg.lock_delay_ms = 50;
   tp::Game game(cfg);
   game.reset(1);
@@ -866,7 +866,7 @@ void test_b2b_quad() {
 void test_b2b_broken_by_single() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   cfg.lock_delay_ms = 50;
   tp::Game game(cfg);
   game.reset(1);
@@ -893,7 +893,7 @@ void test_b2b_broken_by_single() {
 void test_b2b_survives_nolines_lock() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   cfg.lock_delay_ms = 50;
   tp::Game game(cfg);
   game.reset(1);
@@ -922,7 +922,7 @@ void test_b2b_survives_nolines_lock() {
 void test_combo_three_singles() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   cfg.lock_delay_ms = 50;
   tp::Game game(cfg);
   game.reset(1);
@@ -953,7 +953,7 @@ void test_combo_three_singles() {
 void test_clear_flash_then_collapse() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 100;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   tp::Game game(cfg);
   game.reset(1);
   game.fill_row_for_test(tp::kBoardHeight - 1);
@@ -984,7 +984,7 @@ void test_clear_flash_then_collapse() {
 void test_pieces_placed_counted_on_lock() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   tp::Game game(cfg);
   game.reset(1);
   const auto type = game.state().active.kind();
@@ -997,17 +997,18 @@ void test_pieces_placed_counted_on_lock() {
   TP_CHECK(total == 1);
 }
 
-void test_hard_drop_flash() {
+void test_lock_flash() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 100;
+  cfg.piece_lock_flash_ms = 100;
+  cfg.lock_delay_ms = 50;
   tp::Game game(cfg);
   game.reset(1);
-  const auto type = game.state().active.spec;
+  const auto hard_type = game.state().active.spec;
   game.apply(tp::Action::HardDrop);
   TP_CHECK(game.state().lock_flash_ms > 0);
   TP_CHECK(game.state().lock_flash.alive);
-  TP_CHECK(game.state().lock_flash.spec == type);
+  TP_CHECK(game.state().lock_flash.spec == hard_type);
   TP_CHECK(!game.state().active.alive);
 
   game.tick(99);
@@ -1016,12 +1017,28 @@ void test_hard_drop_flash() {
   TP_CHECK(game.state().lock_flash_ms == 0);
   TP_CHECK(!game.state().lock_flash.alive);
   TP_CHECK(game.state().active.alive);
+
+  // Soft lock (lock-delay expiry) also flashes the piece.
+  tp::ActivePiece p;
+  p.spec = tp::PieceSpec::classic(tp::PieceType::O);
+  p.x = 4;
+  p.y = tp::kBoardHeight - 3;
+  p.rotation = 0;
+  p.alive = true;
+  game.set_active_for_test(p);
+  game.apply(tp::Action::SoftDrop);  // ground + start lock delay
+  TP_CHECK(game.state().active.alive);
+  game.tick(50);
+  TP_CHECK(game.state().lock_flash_ms > 0);
+  TP_CHECK(game.state().lock_flash.alive);
+  TP_CHECK(game.state().lock_flash.spec.kind == tp::PieceType::O);
+  TP_CHECK(!game.state().active.alive);
 }
 
 void test_sprint_finish_on_line_goal() {
   tp::GameConfig cfg;
   cfg.clear_flash_ms = 0;
-  cfg.hard_drop_flash_ms = 0;
+  cfg.piece_lock_flash_ms = 0;
   cfg.play_mode = tp::PlayMode::Sprint;
   tp::Game game(cfg);
   game.reset(1);
@@ -1080,7 +1097,7 @@ int main() {
   test_combo_three_singles();
   test_clear_flash_then_collapse();
   test_pieces_placed_counted_on_lock();
-  test_hard_drop_flash();
+  test_lock_flash();
   test_custom_piece_color_hash();
   test_sprint_finish_on_line_goal();
   return tp::test::summary("tp_tests");

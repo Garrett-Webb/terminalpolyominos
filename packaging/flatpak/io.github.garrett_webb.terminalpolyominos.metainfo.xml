@@ -17,9 +17,6 @@
       <code>terminalpolyominos</code> in your preferred terminal emulator
       (tmux, zellij, Kitty, etc.).
     </p>
-    <p>
-      Not affiliated with or endorsed by The Tetris Company.
-    </p>
   </description>
   <launchable type="desktop-id">io.github.garrett_webb.terminalpolyominos.desktop</launchable>
   <launchable type="desktop-id">io.github.garrett_webb.terminalpolyominos-terminal.desktop</launchable>

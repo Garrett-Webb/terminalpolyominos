@@ -12,8 +12,6 @@ The Flatpak ships two menu entries:
 | `io.github.garrett_webb.terminalpolyominos.desktop` | **`terminalpolyominos-gui`** — built-in GTK/VTE window (primary) |
 | `io.github.garrett_webb.terminalpolyominos-terminal.desktop` | **`terminalpolyominos`** in your default terminal emulator (`Terminal=true`) |
 
-Not affiliated with or endorsed by The Tetris Company.
-
 ## Install
 
 Once published on Flathub:

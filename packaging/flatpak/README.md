@@ -1,68 +1,66 @@
-# Flatpak / Flathub
+# terminalpolyominos (Flatpak)
 
-App ID: **`io.github.garrett_webb.terminalpolyominos`**
+**App ID:** `io.github.garrett_webb.terminalpolyominos`
 
-## Icon (you provide)
+Colored polyomino stacking game for Unix terminals. Classic SRS rotation, hold,
+ghost piece, lock delay, local high scores, and configurable keys and timing.
 
-See [icons/README.md](icons/README.md). Minimum: **256×256 PNG** named
-`io.github.garrett_webb.terminalpolyominos.png` in `packaging/flatpak/icons/`.
+This package wraps the upstream `terminalpolyominos` binary (also available as
+`tpoly`). It is a **terminal application**: launch it from a desktop entry or
+`flatpak run`, and it opens inside the host terminal emulator.
 
-## Local smoke test
+Not affiliated with or endorsed by The Tetris Company.
+
+## Install
+
+Once published on Flathub:
 
 ```bash
-# From repo root
-chmod +x packaging/flatpak/build.sh
-./packaging/flatpak/build.sh --run
+flatpak install flathub io.github.garrett_webb.terminalpolyominos
 ```
 
-Requires `flatpak` and `flatpak-builder` (on Fedora: `sudo dnf install flatpak flatpak-builder`), plus the Freedesktop 24.08 runtime/SDK
-(installs automatically on first run).
+## Run
 
-## Flathub submission
-
-1. Screenshots live in `packaging/screenshots/` and are referenced from AppStream metainfo.
-2. Fork [flathub/flathub](https://github.com/flathub/flathub) and open a PR using
-   [NEW_APPLICATION.md](https://github.com/flathub/flathub/blob/master/NEW_APPLICATION.md).
-3. In the **flathub-data** repo (created by the PR), use a manifest like:
-
-```yaml
-app-id: io.github.garrett_webb.terminalpolyominos
-runtime: org.freedesktop.Platform
-runtime-version: '24.08'
-sdk: org.freedesktop.Sdk
-command: terminalpolyominos
-finish-args:
-  - --filesystem=xdg-config/tpoly:create
-  - --filesystem=xdg-data/tpoly:create
-modules:
-  - name: terminalpolyominos
-    buildsystem: cmake-ninja
-    config-opts:
-      - -DCMAKE_BUILD_TYPE=Release
-    sources:
-      - type: git
-        url: https://github.com/Garrett-Webb/terminalpolyominos.git
-        tag: v0.5.2
-        commit: 386e9dc23e99ba0775fd19f3ddf0ce099f6500b5
-    post-install:
-      # (same post-install block as io.github.garrett_webb.terminalpolyominos.yml)
+```bash
+flatpak run io.github.garrett_webb.terminalpolyominos
 ```
 
-4. Include `flathub.json` from this directory.
-5. Wait for bot build + human review.
+Or start **terminalpolyominos** from the application menu (category: Games).
 
-After acceptance, bump the `tag` / `commit` in the Flathub manifest for each release.
+Settings are stored in `~/.config/tpoly/.tpolyrc`. High scores are stored in
+`~/.local/share/tpoly/scores/`.
 
-## Permissions
+## Sandbox
+
+The Flatpak is offline and does not request network access.
 
 | Permission | Purpose |
 |---|---|
-| `xdg-config/tpoly` | Settings file `.tpolyrc` |
-| `xdg-data/tpoly` | High scores |
+| `xdg-config/tpoly` | User settings (`.tpolyrc`) |
+| `xdg-data/tpoly` | Local high-score files |
 
-No network socket. Kitty keyboard protocol depends on the host terminal emulator.
+Kitty keyboard protocol support depends on the host terminal emulator; the
+sandbox does not add extra input permissions beyond running in a terminal.
 
-## Related
+## Build locally
 
-- [Packaging overview](../appimage/../packaging.md) (wiki)
-- [AppImage build](../appimage/build.sh)
+From the repository root:
+
+```bash
+./packaging/flatpak/build.sh          # build
+./packaging/flatpak/build.sh --run    # build, install to user, launch
+```
+
+Requires `flatpak`, `flatpak-builder`, and the Freedesktop 24.08 runtime/SDK.
+The build script installs the runtime on first run if it is missing.
+
+Manifest: `io.github.garrett_webb.terminalpolyominos.yml`  
+Desktop entry and AppStream metadata are in this directory. Icon:
+`icons/io.github.garrett_webb.terminalpolyominos.png`. Screenshots:
+`../screenshots/`.
+
+## Upstream
+
+- Homepage: https://github.com/Garrett-Webb/terminalpolyominos
+- License: GPL-3.0-or-later
+- Issue tracker: https://github.com/Garrett-Webb/terminalpolyominos/issues

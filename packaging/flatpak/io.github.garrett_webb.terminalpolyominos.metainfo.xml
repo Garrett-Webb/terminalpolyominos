@@ -46,6 +46,11 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.5.3" date="2026-09-01">
+      <description>
+        <p>Flatpak packaging for Flathub distribution.</p>
+      </description>
+    </release>
     <release version="0.5.2" date="2026-07-18">
       <description>
         <p>Piece lock white flash on every lock; title screen shows version.</p>

@@ -12,7 +12,7 @@
 #   org.gnome.Sdk//48
 #
 # Icon: place packaging/flatpak/icons/io.github.garrett_webb.terminalpolyominos.png
-#       (see packaging/flatpak/icons/README.md). A placeholder is generated if missing.
+#       (256×256 PNG or SVG). A placeholder is generated if missing.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

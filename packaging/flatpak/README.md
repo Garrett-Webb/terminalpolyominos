@@ -50,32 +50,11 @@ The Flatpak is offline and does not request network access.
 | `xdg-data/tpoly` | Local high-score files |
 | Wayland / X11 | GTK window for `terminalpolyominos-gui` |
 
-The GUI launcher links against **libvte** (GTK4), which is not part of the GNOME
-SDK; the Flatpak manifest builds and bundles it as a module.
-
 Kitty keyboard protocol works when running `terminalpolyominos` in a capable
 external terminal; the embedded VTE window uses legacy input (expected).
-
-## Build locally
-
-From the repository root:
-
-```bash
-./packaging/flatpak/build.sh          # build
-./packaging/flatpak/build.sh --run    # build, install to user, launch
-```
-
-Requires `flatpak`, `flatpak-builder`, and the GNOME 48 runtime/SDK.
-The build script installs the runtime on first run if it is missing.
-
-Manifest: `io.github.garrett_webb.terminalpolyominos.yml`  
-Desktop entry and AppStream metadata are in this directory. Icon:
-`icons/io.github.garrett_webb.terminalpolyominos.png`. Screenshots:
-`../screenshots/`.
 
 ## Upstream
 
 - Homepage: https://github.com/Garrett-Webb/terminalpolyominos
 - License: GPL-3.0-or-later
 - Issue tracker: https://github.com/Garrett-Webb/terminalpolyominos/issues
-- GUI launcher sources: `gui/README.md`

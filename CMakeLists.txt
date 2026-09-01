@@ -96,3 +96,8 @@ target_compile_options(tp_scores_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME tp_scores_tests COMMAND tp_scores_tests)
 
 message(STATUS "terminalpolyominos ${PROJECT_VERSION} (C++${CMAKE_CXX_STANDARD})")
+
+option(TP_BUILD_GUI "Build terminalpolyominos-gui (GTK4+VTE launcher)" OFF)
+if(TP_BUILD_GUI)
+  add_subdirectory(gui)
+endif()

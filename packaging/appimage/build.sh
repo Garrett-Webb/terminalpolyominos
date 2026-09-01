@@ -29,7 +29,7 @@ VERSION="$(grep -E '^[[:space:]]*VERSION[[:space:]]+[0-9]' "$ROOT/CMakeLists.txt
 VERSION="${VERSION:-0.0.0}"
 APPDIR="$OUT_DIR/terminalpolyominos.AppDir"
 NAME="terminalpolyominos-${VERSION}-${APPIMAGE_ARCH}.AppImage"
-DESKTOP="$FLATPAK_DIR/${APP_ID}.desktop"
+DESKTOP="$FLATPAK_DIR/${APP_ID}-terminal.desktop"
 METAINFO="$FLATPAK_DIR/${APP_ID}.metainfo.xml"
 ICON_PNG="$FLATPAK_DIR/icons/${APP_ID}.png"
 

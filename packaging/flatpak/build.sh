@@ -8,8 +8,8 @@
 #
 # Prerequisites:
 #   flatpak, flatpak-builder  (Fedora: sudo dnf install flatpak flatpak-builder)
-#   org.freedesktop.Platform//24.08
-#   org.freedesktop.Sdk//24.08
+#   org.gnome.Platform//48
+#   org.gnome.Sdk//48
 #
 # Icon: place packaging/flatpak/icons/io.github.garrett_webb.terminalpolyominos.png
 #       (see packaging/flatpak/icons/README.md). A placeholder is generated if missing.
@@ -44,9 +44,9 @@ for arg in "$@"; do
 done
 
 ensure_runtime() {
-  if ! flatpak info org.freedesktop.Platform//24.08 >/dev/null 2>&1; then
-    echo "==> Installing Flatpak runtime org.freedesktop.Platform//24.08"
-    flatpak install -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
+  if ! flatpak info org.gnome.Platform//48 >/dev/null 2>&1; then
+    echo "==> Installing Flatpak runtime org.gnome.Platform//48"
+    flatpak install -y flathub org.gnome.Platform//48 org.gnome.Sdk//48
   fi
 }
 
@@ -100,8 +100,8 @@ flatpak-builder \
   "$MANIFEST"
 
 if [[ "$INSTALL" -eq 1 ]]; then
-  echo "==> flatpak install --user"
-  flatpak install -y --user "$REPO_DIR" "$APP_ID"
+  echo "==> flatpak install --user (reinstall if already present)"
+  flatpak install -y --reinstall --user "$REPO_DIR" "$APP_ID"
 fi
 
 if [[ "$RUN" -eq 1 ]]; then

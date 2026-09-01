@@ -2,10 +2,10 @@
 Type=Application
 Name=terminalpolyominos
 GenericName=Terminal Polyominos
-Comment=Colored polyomino stacking game for Unix terminals
-Exec=terminalpolyominos
+Comment=Colored polyomino stacking game (built-in terminal window)
+Exec=terminalpolyominos-gui
 Icon=io.github.garrett_webb.terminalpolyominos
-Terminal=true
+Terminal=false
 Categories=Game;BlocksGame;
 Keywords=polyomino;tui;terminal;game;stacking;
-StartupNotify=false
+StartupNotify=true

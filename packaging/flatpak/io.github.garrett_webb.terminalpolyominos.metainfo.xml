@@ -10,13 +10,19 @@
     <p>
       Lightweight colored polyomino stacking game for the terminal. Classic SRS
       rotation, hold, ghost piece, lock delay, local high scores, and
-      configurable keys and timing. Run inside a terminal emulator.
+      configurable keys and timing.
+    </p>
+    <p>
+      Launch from the app menu to play in a built-in terminal window, or run
+      <code>terminalpolyominos</code> in your preferred terminal emulator
+      (tmux, zellij, Kitty, etc.).
     </p>
     <p>
       Not affiliated with or endorsed by The Tetris Company.
     </p>
   </description>
   <launchable type="desktop-id">io.github.garrett_webb.terminalpolyominos.desktop</launchable>
+  <launchable type="desktop-id">io.github.garrett_webb.terminalpolyominos-terminal.desktop</launchable>
   <categories>
     <category>Game</category>
     <category>BlocksGame</category>
@@ -33,6 +39,7 @@
   <url type="vcs-browser">https://github.com/Garrett-Webb/terminalpolyominos</url>
   <provides>
     <binary>terminalpolyominos</binary>
+    <binary>terminalpolyominos-gui</binary>
     <binary>tpoly</binary>
   </provides>
   <screenshots>

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=terminalpolyominos (terminal)
+GenericName=Terminal Polyominos
+Comment=Colored polyomino stacking game in your terminal emulator
+Exec=terminalpolyominos
+Icon=io.github.garrett_webb.terminalpolyominos
+Terminal=true
+Categories=Game;BlocksGame;
+Keywords=polyomino;tui;terminal;game;stacking;kitty;
+StartupNotify=true

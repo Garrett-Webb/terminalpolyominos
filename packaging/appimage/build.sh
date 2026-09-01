@@ -11,6 +11,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+FLATPAK_DIR="$ROOT/packaging/flatpak"
+APP_ID="io.github.garrett_webb.terminalpolyominos"
 BUILD_DIR="${1:-"$ROOT/build-release"}"
 OUT_DIR="${OUT_DIR:-"$ROOT/dist"}"
 ARCH="$(uname -m)"
@@ -27,9 +29,11 @@ VERSION="$(grep -E '^[[:space:]]*VERSION[[:space:]]+[0-9]' "$ROOT/CMakeLists.txt
 VERSION="${VERSION:-0.0.0}"
 APPDIR="$OUT_DIR/terminalpolyominos.AppDir"
 NAME="terminalpolyominos-${VERSION}-${APPIMAGE_ARCH}.AppImage"
+DESKTOP="$FLATPAK_DIR/${APP_ID}.desktop"
+METAINFO="$FLATPAK_DIR/${APP_ID}.metainfo.xml"
+ICON_PNG="$FLATPAK_DIR/icons/${APP_ID}.png"
 
 echo "==> Configuring Release build in $BUILD_DIR"
-# Optional: STATIC_LIBS=1 if libstdc++-static / libgcc is installed (wider portability).
 CMAKE_EXTRA=()
 if [[ "${STATIC_LIBS:-0}" == "1" ]]; then
   CMAKE_EXTRA+=(-DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc")
@@ -51,15 +55,16 @@ mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/share/applications" \
 install -m755 "$BIN" "$APPDIR/usr/bin/terminalpolyominos"
 ln -sf terminalpolyominos "$APPDIR/usr/bin/tpoly"
 install -m755 "$ROOT/packaging/appimage/AppRun" "$APPDIR/AppRun"
-install -m644 "$ROOT/packaging/appimage/terminalpolyominos.desktop" "$APPDIR/terminalpolyominos.desktop"
-install -m644 "$ROOT/packaging/appimage/terminalpolyominos.desktop" \
-  "$APPDIR/usr/share/applications/terminalpolyominos.desktop"
+install -m644 "$DESKTOP" "$APPDIR/${APP_ID}.desktop"
+install -m644 "$DESKTOP" "$APPDIR/usr/share/applications/${APP_ID}.desktop"
 
-# appimagetool requires an Icon= file; generate a minimal placeholder (not shipped in git).
-python3 - "$APPDIR/terminalpolyominos.png" <<'PY'
-import struct, zlib, sys
+# appimagetool requires Icon= basename at AppDir root.
+if [[ -f "$ICON_PNG" ]]; then
+  install -m644 "$ICON_PNG" "$APPDIR/${APP_ID}.png"
+else
+  python3 - "$APPDIR/${APP_ID}.png" <<'PY'
+import struct, sys, zlib
 path = sys.argv[1]
-# 256x256 solid dark PNG (minimal valid image for AppDir tooling)
 w = h = 256
 raw = b"".join(b"\x00" + bytes([11, 18, 32]) * w for _ in range(h))
 compressed = zlib.compress(raw, 9)
@@ -73,14 +78,11 @@ png += chunk(b"IDAT", compressed)
 png += chunk(b"IEND", b"")
 open(path, "wb").write(png)
 PY
+fi
 
-# Optional AppStream (harmless locally; useful if you later add Flatpak).
-if [[ -f "$ROOT/packaging/appimage/terminalpolyominos.metainfo.xml" ]]; then
-  install -m644 "$ROOT/packaging/appimage/terminalpolyominos.metainfo.xml" \
-    "$APPDIR/usr/share/metainfo/terminalpolyominos.metainfo.xml"
-  # appimagetool historically looks for *.appdata.xml
-  install -m644 "$ROOT/packaging/appimage/terminalpolyominos.metainfo.xml" \
-    "$APPDIR/usr/share/metainfo/terminalpolyominos.appdata.xml"
+if [[ -f "$METAINFO" ]]; then
+  install -m644 "$METAINFO" "$APPDIR/usr/share/metainfo/${APP_ID}.metainfo.xml"
+  install -m644 "$METAINFO" "$APPDIR/usr/share/metainfo/${APP_ID}.appdata.xml"
 fi
 
 mkdir -p "$OUT_DIR"
@@ -96,8 +98,6 @@ if [[ -z "$TOOL" ]]; then
 fi
 
 echo "==> Running appimagetool"
-# Extracted appimagetool avoids FUSE requirement on some hosts.
-# --no-appstream: AppStream checks fail on private repos / non-rdns ids; metadata still shipped in AppDir.
 if "$TOOL" --appimage-extract-and-run --version >/dev/null 2>&1; then
   RUN=("$TOOL" --appimage-extract-and-run)
 else

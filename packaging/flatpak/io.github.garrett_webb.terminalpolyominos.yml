@@ -1,0 +1,51 @@
+# Local build: run packaging/flatpak/build.sh from repo root.
+# Flathub: use git source (see packaging/flatpak/README.md) in the flathub-data PR.
+app-id: io.github.garrett_webb.terminalpolyominos
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: terminalpolyominos
+
+finish-args:
+  # Config (~/.config/tpoly/.tpolyrc) and scores (~/.local/share/tpoly/scores).
+  - --filesystem=xdg-config/tpoly:create
+  - --filesystem=xdg-data/tpoly:create
+  # No network — offline single-player game.
+
+modules:
+  - name: terminalpolyominos
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+    sources:
+      - type: dir
+        path: ../..
+    post-install:
+      - install -Dm644 packaging/flatpak/io.github.garrett_webb.terminalpolyominos.desktop
+        -t /app/share/applications/
+      - install -Dm644 packaging/flatpak/io.github.garrett_webb.terminalpolyominos.metainfo.xml
+        -t /app/share/metainfo/
+      - |
+        APP_ID=io.github.garrett_webb.terminalpolyominos
+        ICON_DIR=packaging/flatpak/icons
+        if test -f "$ICON_DIR/${APP_ID}.svg"; then
+          install -Dm644 "$ICON_DIR/${APP_ID}.svg" \
+            /app/share/icons/hicolor/scalable/apps/${APP_ID}.svg
+        elif test -f "$ICON_DIR/${APP_ID}.png"; then
+          for size in 128 256 512; do
+            src="$ICON_DIR/${APP_ID}.png"
+            if test -f "$ICON_DIR/${APP_ID}-${size}.png"; then
+              src="$ICON_DIR/${APP_ID}-${size}.png"
+            elif test "$size" != 256 && command -v convert >/dev/null 2>&1; then
+              convert "$ICON_DIR/${APP_ID}.png" -resize "${size}x${size}" "/tmp/icon-${size}.png"
+              src="/tmp/icon-${size}.png"
+            elif test "$size" != 256; then
+              continue
+            fi
+            install -Dm644 "$src" \
+              "/app/share/icons/hicolor/${size}x${size}/apps/${APP_ID}.png"
+          done
+        else
+          echo "No icon in $ICON_DIR — run packaging/flatpak/build.sh first" >&2
+          exit 1
+        fi

@@ -53,6 +53,7 @@ stay inside the per-app sandbox via default XDG paths (`XDG_CONFIG_HOME` /
 | Permission | Purpose |
 |---|---|
 | Wayland / X11 | GTK window for `terminalpolyominos-gui` |
+| DRI (`/dev/dri`) | GPU acceleration for GTK/VTE rendering |
 
 Kitty keyboard protocol works when running `terminalpolyominos` in a capable
 external terminal; the embedded VTE window uses legacy input (expected).

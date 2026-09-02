@@ -20,6 +20,7 @@ finish-args:
   # GTK window (VTE is built as a module below; not in the GNOME SDK).
   - --socket=wayland
   - --socket=fallback-x11
+  - --device=dri
   - --share=ipc
   # No network — offline single-player game.
 

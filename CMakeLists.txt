@@ -36,7 +36,42 @@ target_compile_definitions(terminalpolyominos PRIVATE "TP_VERSION=\"${PROJECT_VE
 target_compile_options(terminalpolyominos PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 include(GNUInstallDirs)
+
+set(TP_APP_ID "io.github.garrett_webb.terminalpolyominos")
+set(TP_PACKAGING_DIR "${CMAKE_CURRENT_SOURCE_DIR}/packaging/flatpak")
+set(TP_ICON_DIR "${TP_PACKAGING_DIR}/icons")
+
 install(TARGETS terminalpolyominos RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+install(FILES
+  "${TP_PACKAGING_DIR}/${TP_APP_ID}.desktop"
+  "${TP_PACKAGING_DIR}/${TP_APP_ID}-terminal.desktop"
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+
+install(FILES
+  "${TP_PACKAGING_DIR}/${TP_APP_ID}.metainfo.xml"
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
+
+if(EXISTS "${TP_ICON_DIR}/${TP_APP_ID}.svg")
+  install(FILES "${TP_ICON_DIR}/${TP_APP_ID}.svg"
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+elseif(EXISTS "${TP_ICON_DIR}/${TP_APP_ID}.png")
+  foreach(_size IN ITEMS 128 256 512)
+    set(_icon "${TP_ICON_DIR}/${TP_APP_ID}-${_size}.png")
+    if(NOT EXISTS "${_icon}")
+      if(_size EQUAL 256)
+        set(_icon "${TP_ICON_DIR}/${TP_APP_ID}.png")
+      else()
+        continue()
+      endif()
+    endif()
+    install(FILES "${_icon}"
+      DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/${_size}x${_size}/apps"
+      RENAME "${TP_APP_ID}.png")
+  endforeach()
+else()
+  message(WARNING "No app icon in ${TP_ICON_DIR}; skipping icon install")
+endif()
 
 install(CODE [[
   set(_bindir "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin")

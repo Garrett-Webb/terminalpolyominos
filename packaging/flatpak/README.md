@@ -37,17 +37,21 @@ Advanced users can also run:
 flatpak run --command=terminalpolyominos io.github.garrett_webb.terminalpolyominos
 ```
 
-Settings are stored in `~/.config/tpoly/.tpolyrc`. High scores are stored in
-`~/.local/share/tpoly/scores/`.
+Settings and high scores use the sandbox XDG directories (not the host
+`~/.config/tpoly` or `~/.local/share/tpoly` paths used by native/AppImage
+installs):
+
+- `~/.var/app/io.github.garrett_webb.terminalpolyominos/config/tpoly/.tpolyrc`
+- `~/.var/app/io.github.garrett_webb.terminalpolyominos/data/tpoly/scores/`
 
 ## Sandbox
 
-The Flatpak is offline and does not request network access.
+The Flatpak is offline and does not request network access. Config and data
+stay inside the per-app sandbox via default XDG paths (`XDG_CONFIG_HOME` /
+`XDG_DATA_HOME`).
 
 | Permission | Purpose |
 |---|---|
-| `xdg-config/tpoly` | User settings (`.tpolyrc`) |
-| `xdg-data/tpoly` | Local high-score files |
 | Wayland / X11 | GTK window for `terminalpolyominos-gui` |
 
 Kitty keyboard protocol works when running `terminalpolyominos` in a capable

@@ -8,8 +8,8 @@
 #
 # Prerequisites:
 #   flatpak, flatpak-builder  (Fedora: sudo dnf install flatpak flatpak-builder)
-#   org.gnome.Platform//48
-#   org.gnome.Sdk//48
+#   org.gnome.Platform//50
+#   org.gnome.Sdk//50
 #
 # Icon: place packaging/flatpak/icons/io.github.garrett_webb.terminalpolyominos.png
 #       (256×256 PNG or SVG). A placeholder is generated if missing.
@@ -44,9 +44,12 @@ for arg in "$@"; do
 done
 
 ensure_runtime() {
-  if ! flatpak info org.gnome.Platform//48 >/dev/null 2>&1; then
-    echo "==> Installing Flatpak runtime org.gnome.Platform//48"
-    flatpak install -y flathub org.gnome.Platform//48 org.gnome.Sdk//48
+  local need_install=0
+  flatpak info org.gnome.Platform//50 >/dev/null 2>&1 || need_install=1
+  flatpak info org.gnome.Sdk//50 >/dev/null 2>&1 || need_install=1
+  if [[ "$need_install" -eq 1 ]]; then
+    echo "==> Installing Flatpak runtime org.gnome.Platform//50 and org.gnome.Sdk//50"
+    flatpak install -y flathub org.gnome.Platform//50 org.gnome.Sdk//50
   fi
 }
 

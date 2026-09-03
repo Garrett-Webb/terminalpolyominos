@@ -326,7 +326,6 @@ ActivePiece Game::spawn_piece(const PieceSpec& spec) const {
     }
   }
   const int width = max_x - min_x + 1;
-  // Center the piece's bbox in the well, adjusting for local min_x.
   p.x = (kBoardWidth - width) / 2 - min_x;
   return p;
 }
@@ -430,7 +429,6 @@ void Game::sonic_drop() {
   if (dropped > 0) {
     state_.score += dropped * 2;
   }
-  // Drop is a translate; clears rotate even when distance is 0.
   clear_rotate_flag();
   refresh_ghost();
   begin_lock_if_grounded();
@@ -495,7 +493,6 @@ void Game::lock_active() {
   }
   pending_spin_ = spin;
 
-  // Always run scoring path so 0-line locks reset combo (B2B chain stays).
   const bool has_clear = pending_clear_count_ > 0;
 
   add_lock_score(pending_clear_count_, pending_spin_);
@@ -629,7 +626,6 @@ void Game::add_lock_score(int cleared, SpinType spin) {
 
   int points = lock_points(cleared, spin, state_.level);
   if (difficult && state_.b2b_ready) {
-    // Difficult chain: action score × 1.5 (drop points excluded; those are added elsewhere).
     points += points / 2;
   }
 
@@ -642,7 +638,6 @@ void Game::add_lock_score(int cleared, SpinType spin) {
     state_.lines += cleared;
     state_.level = 1 + state_.lines / config_.lines_per_level;
   } else {
-    // No lines: break combo; B2B chain preserved (incl. 0-line T-piece spins).
     state_.combo = 0;
   }
 

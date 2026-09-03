@@ -44,19 +44,15 @@ class Terminal {
   void move_cursor(int row, int col);  // 1-based
   void hide_cursor();
   void show_cursor();
-  // Color index 0–255. Uses 38;5 / 48;5 when colors_256(); else classic 16-color SGR.
   void set_fg(int color);
   void set_bg(int color);
   void set_bold(bool on);
   void set_dim(bool on);
   void reset_attrs();
 
-  // Enter/leave alternate screen (full-screen apps).
   void enter_alt_screen();
   void leave_alt_screen();
 
-  // Kitty keyboard protocol: query support, push flags, pop on disable/restore.
-  // Call after enter_alt_screen. timeout_ms budgets the detection handshake.
   [[nodiscard]] bool detect_keyboard_protocol(int timeout_ms = 80);
   [[nodiscard]] bool enable_keyboard_protocol();
   void disable_keyboard_protocol();
@@ -66,6 +62,7 @@ class Terminal {
   bool color_ = false;
   bool colors_256_ = false;
   bool alt_screen_ = false;
+  bool focus_reporting_ = false;
   bool raw_ = false;
   bool keyboard_enhanced_ = false;
   termios original_{};

@@ -13,8 +13,8 @@ inline constexpr int kNextQueueMax = 5;   // NEXT panel fits 5 when packed tight
 inline constexpr int kNextQueueDefault = 3;
 inline constexpr int kLinesPerLevel = 10;
 inline constexpr int kLockDelayMs = 500;
-inline constexpr int kClearFlashMs = 100;  // white flash before rows collapse
-inline constexpr int kLockFlashMs = 100;   // white flash when a piece locks (color only)
+inline constexpr int kClearFlashMs = 100;
+inline constexpr int kLockFlashMs = 100;
 inline constexpr int kMaxPieceCells = 5;
 inline constexpr int kMaxBagSize = 25;
 
@@ -82,8 +82,6 @@ enum class PieceType : std::uint8_t {
   Count,
 };
 
-// Classic: kind in I..L, n=4, cells unused (SRS tables).
-// Custom: kind=Custom, n in 3..5, cells[0..n) = base orientation (min x,y = 0).
 struct PieceSpec {
   PieceType kind = PieceType::I;
   int n = 4;
@@ -127,8 +125,8 @@ enum class Action : std::uint8_t {
   Pause,
   Quit,
   Restart,
-  Settings,  // open settings menu (title / pause)
-  Scores,    // open high scores (title)
+  Settings,
+  Scores,
 };
 
 enum class Phase : std::uint8_t {
@@ -136,13 +134,12 @@ enum class Phase : std::uint8_t {
   Playing,
   Paused,
   GameOver,
-  Finished,  // Marathon / Sprint line goal reached
+  Finished,
 };
 
 struct Cell {
   bool filled = false;
   PieceType type = PieceType::I;
-  // Palette index used when drawing this cell (0–255). Set at lock time.
   std::uint8_t color = 7;
 };
 
@@ -160,15 +157,11 @@ struct GameConfig {
   int lock_delay_ms = kLockDelayMs;
   int lines_per_level = kLinesPerLevel;
   int next_count = kNextQueueDefault;
-  // 0 = collapse instantly (useful in tests).
   int clear_flash_ms = kClearFlashMs;
-  // 0 = no piece lock flash (also forced off when color is disabled).
   int piece_lock_flash_ms = kLockFlashMs;
   Randomizer randomizer = Randomizer::SevenBag;
   PlayMode play_mode = PlayMode::Endless;
-  // Hash custom/funk/freak shapes onto palette indices. Off -> white.
   bool freak_colors = true;
-  // When true, piece colors use 256-color indices; else classic 16-color.
   bool colors_256 = true;
 };
 

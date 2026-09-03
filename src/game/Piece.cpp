@@ -6,8 +6,6 @@
 namespace tp {
 namespace {
 
-// xterm 256 cube index 16..231 -> r,g,b in 0..5. Reject near-black / muddy tones so
-// solid cells and dim-capable ghosts stay visible on dark / transparent terminals.
 [[nodiscard]] bool freak_256_ok(int idx) {
   if (idx < 16 || idx > 231) {
     return false;
@@ -18,7 +16,6 @@ namespace {
   const int b = o % 6;
   const int sum = r + g + b;
   const int mx = std::max(r, std::max(g, b));
-  // Skip dark cube corners and weak pastels (e.g. (0,0,4), (1,1,1)).
   return sum >= 6 && mx >= 3;
 }
 
@@ -33,8 +30,6 @@ namespace {
   return 51;  // cyan fallback
 }
 
-// Orientations with y+ down. Values are offsets from the piece origin (x,y).
-// Layouts follow common SRS shapes (I uses a 4-wide bar; O a 2x2).
 constexpr Offset kCells[7][4][4] = {
     // I
     {
@@ -91,13 +86,10 @@ void custom_cells(const PieceSpec& spec, int rotation, Offset out[], int& out_n)
   out_n = std::max(1, std::min(spec.n, kMaxPieceCells));
   const int r = ((rotation % 4) + 4) % 4;
 
-  // Integer rotation around the local origin. Floating-point pivots + rounding
-  // can split edge-connected polyominoes (especially L/J/T-like shapes).
   for (int i = 0; i < out_n; ++i) {
     int x = spec.cells[static_cast<std::size_t>(i)].x;
     int y = spec.cells[static_cast<std::size_t>(i)].y;
     for (int k = 0; k < r; ++k) {
-      // Clockwise with y+ down: (x, y) -> (-y, x)
       const int nx = -y;
       const int ny = x;
       x = nx;
@@ -188,7 +180,6 @@ int piece_color(const PieceSpec& spec, bool freak_colors, bool colors_256) {
     return flash_white(colors_256);
   }
 
-  // FNV-1a over sorted cell keys so equal shapes match regardless of array order.
   constexpr std::uint32_t kOffset = 2166136261u;
   constexpr std::uint32_t kPrime = 16777619u;
   std::uint8_t keys[kMaxPieceCells];

@@ -5,9 +5,6 @@
 namespace tp {
 namespace {
 
-// Wiki tables use y+ up. Stored here with y negated (code y+ down).
-// Indexed [from][to] for the eight adjacent transitions; unused pairs unused.
-
 constexpr Kick kJlstz[4][4][5] = {
     // from 0
     {
@@ -76,9 +73,6 @@ void copy_n(const Kick* src, int count, Kick out[kMaxKickTests]) {
   }
 }
 
-// Freestyle kicks for arbitrary polyominoes (≤4×4). Tries small wall/floor/ceiling
-// offsets before larger ones. CW prefers leftward first; CCW prefers rightward -
-// similar bias to JLSTZ - and floor (y+) before ceiling (y−).
 int fill_custom_kicks(bool cw, Kick out[kMaxKickTests]) {
   const int hx = cw ? -1 : 1;  // preferred horizontal sign
   int n = 0;
@@ -101,7 +95,6 @@ int fill_custom_kicks(bool cw, Kick out[kMaxKickTests]) {
 
   push(0, 0);
 
-  // Manhattan rings 1..4, axis extent capped at 3 (enough for 4×4 bbox pivots).
   for (int man = 1; man <= 4; ++man) {
     Kick ring[64];
     int rn = 0;
@@ -117,8 +110,6 @@ int fill_custom_kicks(bool cw, Kick out[kMaxKickTests]) {
       }
     }
 
-    // Sort ring: prefer pure horizontal, then pure vertical, then diagonals;
-    // hx-matching dx first; positive dy (floor) before negative (ceiling).
     for (int i = 0; i < rn; ++i) {
       for (int j = i + 1; j < rn; ++j) {
         auto key = [&](const Kick& k) {
@@ -175,11 +166,9 @@ int srs_kick_tests(PieceType kind, int from_rot, int to_rot, Kick out[kMaxKickTe
 
 SpinType classify_tspin(const Board& board, int piece_x, int piece_y, int rotation,
                         int kick_dx, int kick_dy) {
-  // SRS T center is always local (1,1).
   const int cx = piece_x + 1;
   const int cy = piece_y + 1;
 
-  // Four diagonal corners: A=NW, B=NE, C=SW, D=SE in code coords (y+ down).
   const bool a = board.occupied(cx - 1, cy - 1);  // up-left
   const bool b = board.occupied(cx + 1, cy - 1);  // up-right
   const bool c = board.occupied(cx - 1, cy + 1);  // down-left

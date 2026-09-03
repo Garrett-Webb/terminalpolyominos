@@ -76,7 +76,6 @@ int Board::clear_full_lines() {
     for (int x = 0; x < kBoardWidth; ++x) {
       clear_cell(x, 0);
     }
-    // Stay on same y to re-check the row that fell into place.
   }
   return cleared;
 }

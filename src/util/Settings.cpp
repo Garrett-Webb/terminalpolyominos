@@ -320,13 +320,10 @@ Settings Settings::load_or_create() {
   }
 
   Settings s = parse(text);
-  // Older files claimed `h` on left (hjkl). Parsing left first strips the default
-  // scores bind (`h`), leaving an empty list. Restore the default scores key.
   bool restored_scores = false;
   if (s.input.keys.scores.empty()) {
     restored_scores = s.input.keys.set_list(s.input.keys.scores, "h");
   }
-  // Upgrade older rc files missing newer keys (rewrites with current defaults merged).
   if (restored_scores || read_file(primary).empty() ||
       text.find("key_settings=") == std::string::npos ||
       text.find("key_scores=") == std::string::npos ||

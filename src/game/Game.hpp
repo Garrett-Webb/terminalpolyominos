@@ -21,22 +21,15 @@ struct GameState {
   int score = 0;
   int level = 1;
   int lines = 0;
-  // Wall-clock play time while phase == Playing (ms). Used for Sprint / HUD.
   int play_ms = 0;
-  // Consecutive clears: 0 = none yet / broken. After first clear becomes 1; bonus uses
-  // pre-increment value so 2nd clear awards 50×1×level.
   int combo = 0;
-  // True after a difficult clear (Quad or T-piece spin with lines); next difficult gets ×1.5.
   bool b2b_ready = false;
   Phase phase = Phase::Ready;
   bool hold_used = false;
-  // While > 0, matching rows in clear_rows flash before collapsing.
   int clear_flash_ms = 0;
   std::array<bool, kBoardHeight> clear_rows{};
-  // White flash on the just-locked piece (any lock, not only hard drop).
   int lock_flash_ms = 0;
   ActivePiece lock_flash{};
-  // Pieces locked this game (indexed by PieceType, including Custom).
   std::array<int, static_cast<std::size_t>(PieceType::Count)> pieces_placed{};
 };
 
@@ -52,10 +45,9 @@ class Game {
   [[nodiscard]] const GameState& state() const { return state_; }
   [[nodiscard]] const GameConfig& config() const { return config_; }
 
-  // True if the board/HUD may have changed since the last consume_dirty().
   [[nodiscard]] bool consume_dirty();
 
-  // Test helpers / deterministic injection.
+  // Test helpers
   void set_active_for_test(ActivePiece piece);
   void fill_row_for_test(int y, PieceType type = PieceType::I);
   void set_cell_for_test(int x, int y, PieceType type = PieceType::I);

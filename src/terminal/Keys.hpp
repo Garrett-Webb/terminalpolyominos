@@ -16,8 +16,10 @@ enum class Key : std::uint8_t {
   Enter,
   Esc,
   Backspace,
-  Char,  // printable; see KeyEvent::ch
+  Char,
   CtrlC,
+  FocusIn,
+  FocusOut,
 };
 
 enum class KeyEventType : std::uint8_t {
@@ -26,7 +28,7 @@ enum class KeyEventType : std::uint8_t {
   Release = 3,
 };
 
-// Modifier bitfield (Kitty encoding without the +1 offset).
+
 inline constexpr int kModShift = 1;
 inline constexpr int kModAlt = 2;
 inline constexpr int kModCtrl = 4;
@@ -34,12 +36,12 @@ inline constexpr int kModSuper = 8;
 
 struct KeyEvent {
   Key key = Key::None;
-  char ch = 0;  // valid when key == Char (lowercase folded by Input if desired)
+  char ch = 0;
   KeyEventType type = KeyEventType::Press;
-  int mods = 0;  // bitfield; 0 = none
+  int mods = 0;
 };
 
-// Parses a stream of raw stdin bytes into key events (legacy CSI + Kitty CSI u).
+
 class KeyDecoder {
  public:
   void feed(unsigned char byte);

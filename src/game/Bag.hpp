@@ -8,7 +8,6 @@
 
 namespace tp {
 
-// Piece randomizer with an explicit seed for tests/replays.
 class Bag {
  public:
   explicit Bag(std::uint64_t seed = 1, Randomizer mode = Randomizer::SevenBag);
@@ -19,7 +18,6 @@ class Bag {
   void reseed(std::uint64_t seed);
   PieceSpec next();
 
-  // Test helper: force refill and expose current bag contents.
   void refill_for_test();
   [[nodiscard]] int bag_size() const { return size_; }
   [[nodiscard]] PieceSpec bag_at(int i) const { return bag_[static_cast<std::size_t>(i)]; }

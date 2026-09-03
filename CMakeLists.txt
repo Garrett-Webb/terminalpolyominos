@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(terminalpolyominos
-  VERSION 0.5.4
+  VERSION 0.5.5
   DESCRIPTION "Lightweight full-featured polyomino stacking game for Unix terminals"
   LANGUAGES CXX)
 

@@ -66,11 +66,18 @@ void App::setup_keyboard() {
   input_.set_key_up_aware(false);
 }
 
+void App::pause_if_not_focused() {
+  if (screen_ != Screen::Playing || game_.state().phase != Phase::Playing) {
+    return;
+  }
+  game_.apply(Action::Pause);
+  input_.reset();
+  ui_dirty_ = true;
+}
+
 void App::open_settings() {
   settings_return_ = screen_;
-  if (screen_ == Screen::Playing && game_.state().phase == Phase::Playing) {
-    game_.apply(Action::Pause);
-  }
+  pause_if_not_focused();
   menu_.open(settings_);
   screen_ = Screen::Settings;
   input_.reset();
@@ -304,6 +311,13 @@ void App::pump_keys() {
     if (ev.key == Key::CtrlC) {
       quit_ = true;
       return;
+    }
+    if (ev.key == Key::FocusOut) {
+      pause_if_not_focused();
+      continue;
+    }
+    if (ev.key == Key::FocusIn) {
+      continue;
     }
 
     // Title / scores / name-edit: press only. Settings accepts Repeat for hold-nav.

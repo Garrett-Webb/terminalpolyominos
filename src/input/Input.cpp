@@ -93,6 +93,8 @@ std::string KeySpec::token() const {
       return {};
     case Key::CtrlC:
       return "ctrl-c";
+    case Key::FocusIn:
+    case Key::FocusOut:
     case Key::None:
       return {};
   }
@@ -141,7 +143,6 @@ std::optional<KeySpec> KeySpec::from_token(std::string_view t) {
 }
 
 Keybinds::Keybinds() {
-  // Arrows + wasd-ish letters. Do not claim `h` here - it is the default scores key.
   left = {special(Key::Left), letter('a')};
   right = {special(Key::Right), letter('d'), letter('l')};
   soft_drop = {special(Key::Down), letter('s'), letter('j')};
@@ -158,7 +159,7 @@ Keybinds::Keybinds() {
 }
 
 std::optional<Action> Keybinds::action_for(const KeyEvent& ev) const {
-  // Always honor Ctrl+C as quit, even if remapped away in the rc.
+  // Always honor Ctrl+C as quit
   if (ev.key == Key::CtrlC) {
     return Action::Quit;
   }
@@ -251,7 +252,6 @@ bool Keybinds::set_list(std::vector<KeySpec>& dest, std::string_view csv) {
   }
   flush();
 
-  // Reject empty / all-invalid lists so a typo does not wipe defaults.
   if (parsed.empty()) {
     return false;
   }
@@ -350,12 +350,10 @@ void Input::press_dir(Dir dir) {
   }
 
   if (key_up_aware_) {
-    // Already held (spurious press / missing event-type): keep-alive only.
     if (stick->held) {
       stick->since_event_ms = 0;
       return;
     }
-    // One step on press; ARR waits for DAS (release_ms) then uses move/soft intervals.
     *stick = Stick{};
     stick->held = true;
     stick->repeating = false;
@@ -367,13 +365,11 @@ void Input::press_dir(Dir dir) {
   }
 
   if (stick->held) {
-    // Second+ event for this direction = real hold (terminal key-repeat).
     stick->repeating = true;
     stick->since_event_ms = 0;
     return;
   }
 
-  // Fresh press: exactly one step. Repeats wait for key-repeat + move timer.
   *stick = Stick{};
   stick->held = true;
   stick->repeating = false;
@@ -396,7 +392,6 @@ void Input::repeat_dir(Dir dir) {
   if (stick == nullptr || !stick->held) {
     return;
   }
-  // Protocol repeat is keep-alive only - never steps and never resets ARR/DAS timers.
   stick->since_event_ms = 0;
 }
 
@@ -409,13 +404,11 @@ void Input::tick_dir(Stick& stick, Dir dir, int elapsed_ms, int interval_ms) {
 
   if (key_up_aware_) {
     stick.held_ms += elapsed_ms;
-    // Safety watchdog if a release event was lost (~2s of no press/repeat).
     constexpr int kStuckMs = 2000;
     if (stick.since_event_ms >= kStuckMs) {
       stick = Stick{};
       return;
     }
-    // DAS: arm ARR only after release_ms of continuous hold.
     if (!stick.repeating) {
       if (stick.held_ms >= config_.release_ms) {
         stick.repeating = true;
@@ -428,13 +421,11 @@ void Input::tick_dir(Stick& stick, Dir dir, int elapsed_ms, int interval_ms) {
       stick = Stick{};
       return;
     }
-    // Single taps must not get a second block from the timer.
     if (!stick.repeating) {
       return;
     }
   }
 
-  // ARR: step every move_interval_ms / soft_drop_interval_ms while held.
   const int interval = interval_ms < 1 ? 1 : interval_ms;
   stick.step_acc_ms += elapsed_ms;
   while (stick.step_acc_ms >= interval) {
@@ -482,7 +473,6 @@ void Input::on_key(const KeyEvent& ev) {
     return;
   }
 
-  // Instant actions: press only when key-up-aware (ignore repeat/release).
   if (key_up_aware_ && !is_dir) {
     if (ev.type != KeyEventType::Press) {
       return;
@@ -547,12 +537,10 @@ KeyboardProtocol parse_keyboard_protocol(std::string_view s) {
   for (unsigned char c : s) {
     lower.push_back(static_cast<char>(std::tolower(c)));
   }
-  // "on" kept as alias for older .tpolyrc files.
   if (lower == "kitty" || lower == "on" || lower == "1" || lower == "true" ||
       lower == "yes") {
     return KeyboardProtocol::Kitty;
   }
-  // "off" kept as alias for older .tpolyrc files.
   if (lower == "legacy" || lower == "off" || lower == "0" || lower == "false" ||
       lower == "no") {
     return KeyboardProtocol::Legacy;

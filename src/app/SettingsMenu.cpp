@@ -342,7 +342,6 @@ void SettingsMenu::capture(const KeyEvent& ev) {
 }
 
 void SettingsMenu::on_key(const KeyEvent& ev) {
-  // Capture / confirm / activate are press-only.
   if (confirming_clear_) {
     if (ev.type != KeyEventType::Press) {
       return;
@@ -358,7 +357,6 @@ void SettingsMenu::on_key(const KeyEvent& ev) {
     return;
   }
 
-  // Kitty hold: accept Press + Repeat for browse / adjust. Ignore Release.
   if (ev.type != KeyEventType::Press && ev.type != KeyEventType::Repeat) {
     return;
   }

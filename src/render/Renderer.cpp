@@ -52,13 +52,10 @@ void Renderer::Canvas::begin(TermSize sz) {
     force_full_ = true;
     clear_next_ = false;
   } else if (clear_next_) {
-    // Blank slate so leftover glyphs from another screen are erased.
     cur_.assign(static_cast<std::size_t>(rows_ * cols_), Glyph{});
     force_full_ = true;
     clear_next_ = false;
   } else {
-    // Keep last frame as the base; paint overwrites. Avoids wiping the whole
-    // terminal grid every tick (expensive at large sizes).
     cur_ = prev_;
   }
   row_ = 1;
@@ -132,14 +129,9 @@ void Renderer::Canvas::emit_sgr(std::string& out, const Glyph& g) const {
   if (g.dim) {
     out.append("\x1b[2m");
   }
-  // present() calls this; Index 0–255 always via 38;5 when term supports 256.
-  // For simplicity emit 38;5/48;5 whenever index > 15 OR we need a single path;
-  // for 0–15 on 16-color TTYs, classic codes are safer - decided by caller via
-  // whether values >15 appear. Always use 38;5 when fg>15; else dual path:
   auto append_fg = [&](int c) {
     char tmp[24];
     int n = 0;
-    // Prefer 38;5 for any index outside classic 16 so 256-palette pieces render.
     if (c > 15) {
       n = std::snprintf(tmp, sizeof(tmp), "\x1b[38;5;%dm", c);
     } else if (c >= 8) {
@@ -183,7 +175,6 @@ void Renderer::Canvas::present(Terminal& term) {
     Glyph last{};
     bool have_last = false;
     for (int r = 1; r <= rows_; ++r) {
-      // Trim trailing blanks per row; still emit interior spaces so words stay spaced.
       int last_col = 0;
       for (int c = cols_; c >= 1; --c) {
         const Glyph& g = cur_[static_cast<std::size_t>((r - 1) * cols_ + (c - 1))];
@@ -252,7 +243,7 @@ void Renderer::Canvas::present(Terminal& term) {
     if (!any) {
       last_empty_ = true;
       force_full_ = false;
-      return;  // Nothing changed - skip the write syscall entirely.
+      return;
     }
   }
 
@@ -339,7 +330,7 @@ void Renderer::cell(Canvas& f, const Layout& lay, int row, int col, bool filled,
     f.cup(row + dy, col);
     if (flash) {
       if (term_.color_enabled()) {
-        f.bg(flash_white(term_.colors_256()));  // white
+        f.bg(flash_white(term_.colors_256()));
         for (int i = 0; i < lay.cell_w; ++i) {
           f.text(' ');
         }
@@ -359,7 +350,6 @@ void Renderer::cell(Canvas& f, const Layout& lay, int row, int col, bool filled,
     }
     if (ghost) {
       if (term_.color_enabled()) {
-        // Outline only - do not dim; SGR dim + dark/transparent themes makes ghosts vanish.
         f.fg(color);
       }
       if (lay.cell_w <= 2) {
@@ -427,7 +417,6 @@ void Renderer::piece_preview(Canvas& f, const Layout& lay, int row, int col, int
   const int offset_x = std::max(0, (panel_w - piece_w) / 2);
   const int offset_y = std::max(0, (slot_h - piece_h) / 2);
 
-  // Clear the slot so previous (differently shaped) pieces don't leave crumbs.
   for (int y = 0; y < slot_h; ++y) {
     f.cup(row + y, col);
     for (int x = 0; x < panel_w; ++x) {
@@ -452,7 +441,6 @@ void Renderer::draw_title(const HighScores& scores, Randomizer current, PlayMode
   canvas_.begin(sz);
 
   constexpr int kContentMax = 48;
-  // logo(6), wordmark, blank, tagline, blank, actions, blank, score hdr + 3, blank, CTA
   constexpr int kBlockH = 18;
   const int content_w = std::min(kContentMax, std::max(1, sz.cols));
   const int col = sz.cols > content_w ? (sz.cols - content_w) / 2 + 1 : 1;
@@ -563,7 +551,6 @@ void Renderer::draw_scores(const HighScores& scores, Randomizer viewing,
   const int col = std::max(1, (sz.cols - width) / 2 + 1);
   int row = 1;
 
-  // ASCII only - multi-byte glyphs skew overwrite when cycling board names.
   auto pad_line = [&](int r, std::string_view s) {
     canvas_.cup(r, col);
     if (static_cast<int>(s.size()) >= width) {
@@ -739,7 +726,6 @@ void Renderer::draw_game(const GameState& state, const GameConfig& config,
     canvas_.cup(row, hold_content_col);
     canvas_.text(label);
     canvas_.number(value);
-    // Erase leftover digits when the number gets shorter.
     for (int i = 0; i < 8; ++i) {
       canvas_.text(' ');
     }
@@ -838,7 +824,6 @@ void Renderer::draw_game(const GameState& state, const GameConfig& config,
       canvas_.text('|');
       canvas_.cup(row + dy, lay.field_col + 1 + inner_w);
       canvas_.text('|');
-      // Gutters are not otherwise painted; wipe so overlay spill cannot stick.
       for (int g = 0; g < kGap; ++g) {
         canvas_.cup(row + dy, lay.field_col + lay.field_w + g);
         canvas_.text(' ');
@@ -852,7 +837,6 @@ void Renderer::draw_game(const GameState& state, const GameConfig& config,
       if (state.clear_flash_ms > 0 && state.clear_rows[static_cast<std::size_t>(by)]) {
         cell(canvas_, lay, row, col, true, 7, false, true);
       } else if (lock_flash_mask[by][x]) {
-        // White flash only - caller disables anim when color is off.
         cell(canvas_, lay, row, col, true, 7, false, true);
       } else if (active_mask[by][x]) {
         cell(canvas_, lay, row, col, true, active_color, false);
@@ -878,14 +862,12 @@ void Renderer::draw_game(const GameState& state, const GameConfig& config,
   hline(canvas_, field_bottom, lay.next_col, lay.side_inner_w, '+', '-');
 
   const int next_content_col = lay.next_col + 1;
-  // Pack slots with no gap row so 5 previews fit in the 20-cell panel at scale 1.
   const int preview_stride = 4 * lay.cell_h;
   const int shown = std::max(1, std::min(state.next_count, kNextQueueMax));
   for (int i = 0; i < shown; ++i) {
     piece_preview(canvas_, lay, lay.next_row + 1 + i * preview_stride, next_content_col,
                   lay.side_inner_w, state.next[static_cast<std::size_t>(i)], freak_colors);
   }
-  // Erase unused lower slots when the queue is shorter than max.
   const int used_h = shown * preview_stride;
   for (int y = used_h; y < side_inner_h; ++y) {
     canvas_.cup(lay.next_row + 1 + y, next_content_col);
@@ -897,14 +879,13 @@ void Renderer::draw_game(const GameState& state, const GameConfig& config,
   const int overlay_row = lay.field_row + std::max(1, field_inner_h / 2 - 5);
   const int overlay_col = lay.field_col + 1;
   const int overlay_w = inner_w;
-  const int overlay_end = overlay_col + overlay_w;  // first col past playfield interior
+  const int overlay_end = overlay_col + overlay_w;
 
   auto clear_row = [&](int r) {
     canvas_.cup(r, overlay_col);
     for (int i = 0; i < overlay_w; ++i) {
       canvas_.text(' ');
     }
-    // Also wipe the NEXT gutter - long overlay lines used to spill here.
     for (int g = 0; g < kGap; ++g) {
       canvas_.cup(r, lay.field_col + lay.field_w + g);
       canvas_.text(' ');
@@ -936,7 +917,6 @@ void Renderer::draw_game(const GameState& state, const GameConfig& config,
         keybinds.format_list(keybinds.settings) + " settings",
         keybinds.format_list(keybinds.quit) + " quit",
     };
-    // Pack onto as few centered lines as fit the playfield width.
     std::string line;
     for (const std::string& part : parts) {
       if (line.empty()) {
@@ -1050,7 +1030,6 @@ void Renderer::draw_game(const GameState& state, const GameConfig& config,
       if (game_over->editing_name) {
         std::string prompt = "Name: ";
         prompt += game_over->name_buf.empty() ? "_" : std::string(game_over->name_buf);
-        // Keep this short - at scale 1 the playfield interior is only 30 cols.
         prompt += "  Enter/Esc";
         center_text(r++, prompt, 2, false);
       } else {
@@ -1088,7 +1067,6 @@ void Renderer::draw_game(const GameState& state, const GameConfig& config,
     hint += keybinds.format_list(keybinds.quit);
     hint += " quit";
 
-    // Center in the full terminal width; truncate if the remapped list is too long.
     const int term_w = std::max(1, sz.cols);
     std::string_view shown = hint;
     int hint_col = 1;
@@ -1098,7 +1076,6 @@ void Renderer::draw_game(const GameState& state, const GameConfig& config,
       hint_col = 1 + (term_w - static_cast<int>(hint.size())) / 2;
     }
 
-    // Wipe the whole hint row so a longer previous string cannot leave crumbs.
     canvas_.cup(lay.hint_row, 1);
     for (int i = 0; i < term_w; ++i) {
       canvas_.text(' ');
@@ -1291,7 +1268,6 @@ void Renderer::draw_settings(const SettingsMenuView& menu) {
   }
   canvas_.text("SETTINGS");
   canvas_.reset();
-  // Always rewrite this slot so clearing dirty erases "(unsaved)".
   canvas_.cup(row, col + 12);
   if (menu.dirty) {
     if (term_.color_enabled()) {
@@ -1327,7 +1303,6 @@ void Renderer::draw_settings(const SettingsMenuView& menu) {
   int y = row;
   const int y_end = row + visible;
 
-  // Map visual rows [vscroll, vscroll+visible) onto items (and gap blanks).
   int visual = 0;
   for (int idx = 0; idx < kSettingsItemCount && y < y_end; ++idx) {
     const auto item = static_cast<SettingsItem>(idx);
@@ -1357,7 +1332,6 @@ void Renderer::draw_settings(const SettingsMenuView& menu) {
 
       if (item == SettingsItem::ClearScores || item == SettingsItem::Save ||
           item == SettingsItem::Reset || item == SettingsItem::Back) {
-        // Clear any leftover value text from scrolling past keybind rows.
         const int val_col = col + 2 + kLabelField;
         const int max_v = std::max(8, col + width - val_col);
         canvas_.cup(y, val_col);
@@ -1391,7 +1365,6 @@ void Renderer::draw_settings(const SettingsMenuView& menu) {
     }
     ++visual;
   }
-  // Wipe leftover rows when the list is shorter than the viewport (gaps / scroll).
   while (y < y_end) {
     canvas_.cup(y, col);
     pad_text("", width);
@@ -1405,7 +1378,6 @@ void Renderer::draw_settings(const SettingsMenuView& menu) {
   auto pad_foot = [&](int r, std::string_view s) {
     canvas_.reset();
     canvas_.cup(r, col);
-    // Full wipe under default attrs first (kills UTF-8 / attr crumbs).
     for (int i = 0; i < foot_w; ++i) {
       canvas_.text(' ');
     }
@@ -1424,7 +1396,6 @@ void Renderer::draw_settings(const SettingsMenuView& menu) {
     canvas_.reset();
   };
 
-  // ASCII only - arrow / em-dash glyphs break canvas-vs-terminal columns.
   if (menu.confirming_clear) {
     pad_foot(foot, "Type yes + Enter to wipe ALL boards - Esc cancels");
   } else if (menu.capturing) {

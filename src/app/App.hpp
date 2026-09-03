@@ -24,6 +24,7 @@ class App {
   enum class Screen : std::uint8_t { Title, Playing, Settings, Scores };
 
   void pump_keys();
+  void pause_if_not_focused();
   void handle_action(Action action);
   void handle_settings_result();
   void open_settings();

@@ -21,6 +21,7 @@ Terminal* g_active = nullptr;
 termios g_original{};
 bool g_have_original = false;
 bool g_alt_screen = false;
+bool g_focus_reporting = false;
 bool g_keyboard_pushed = false;
 
 void write_raw(const char* seq) {
@@ -36,6 +37,10 @@ void pop_keyboard_mode() {
 
 void restore_tty_now() {
   pop_keyboard_mode();
+  if (g_focus_reporting) {
+    write_raw("\x1b[?1004l");
+    g_focus_reporting = false;
+  }
   if (g_alt_screen) {
     // Leave alt screen + show cursor + reset attrs.
     write_raw("\x1b[?1049l\x1b[?25h\x1b[0m");
@@ -62,7 +67,6 @@ void install_signal_handlers() {
   sigaction(SIGTERM, &sa, nullptr);
   sigaction(SIGQUIT, &sa, nullptr);
   sigaction(SIGABRT, &sa, nullptr);
-  // SIGTSTP left alone so job control still works; we restore on resume if needed later.
 }
 
 bool env_truthy_no_color() {
@@ -77,7 +81,6 @@ bool term_looks_256color(const char* term) {
   if (std::strstr(term, "256color") != nullptr) {
     return true;
   }
-  // Common TERM values that support indexed 256 without the substring.
   static constexpr const char* kKnown[] = {
       "foot", "foot-extra", "xterm-ghostty", "ghostty", "alacritty", "wezterm",
   };
@@ -90,7 +93,6 @@ bool term_looks_256color(const char* term) {
   if (colorterm != nullptr &&
       (std::strcmp(colorterm, "truecolor") == 0 ||
        std::strcmp(colorterm, "24bit") == 0)) {
-    // Truecolor terminals almost always handle 38;5 as well.
     return true;
   }
   return false;
@@ -132,12 +134,6 @@ Terminal::Terminal() {
   }
   raw_ = true;
 
-  // Deliberately do not set O_NONBLOCK on stdin. Raw mode with VMIN=0/VTIME=0
-  // already makes read() return immediately when no input is pending, so the
-  // flag is unnecessary for non-blocking key polling. Setting O_NONBLOCK on
-  // stdin also marks the shared TTY open-file description non-blocking, which
-  // makes stdout return short writes / EAGAIN once the ~1KB macOS tty output
-  // buffer fills and corrupted frames if those writes are not retried.
 
   color_ = !env_truthy_no_color();
   const char* term = std::getenv("TERM");
@@ -167,7 +163,6 @@ Terminal::~Terminal() {
     (void)tcsetattr(STDIN_FILENO, TCSAFLUSH, &original_);
     raw_ = false;
   }
-  // Keep g_have_original so atexit is idempotent / safe.
 }
 
 TermSize Terminal::size() const {
@@ -179,9 +174,6 @@ TermSize Terminal::size() const {
 }
 
 void Terminal::write(std::string_view s) {
-  // Write every byte. Short writes and EINTR/EAGAIN must be retried, otherwise
-  // the tail of the frame is silently dropped and the display corrupts -
-  // especially with macOS's small (~1KB) tty output buffer vs a full frame.
   const char* data = s.data();
   std::size_t remaining = s.size();
 
@@ -199,15 +191,12 @@ void Terminal::write(std::string_view s) {
     }
 
     if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-      // stdout is non-blocking; wait for room rather than dropping bytes
       pollfd pfd{};
       pfd.fd = STDOUT_FILENO;
       pfd.events = POLLOUT;
       (void)::poll(&pfd, 1, -1);
       continue;
     }
-
-    // n==0 or unrecoverable error: stop to avoid spinning forever
     break;
   }
 }
@@ -217,7 +206,6 @@ void Terminal::flush() {
 }
 
 void Terminal::present(std::string_view frame) {
-  // DECSET 2026 synchronized update (ignored by terminals that don't support it).
   write("\x1b[?2026h");
   write(frame);
   write("\x1b[?2026l");
@@ -236,8 +224,6 @@ bool Terminal::detect_keyboard_protocol(int timeout_ms) {
   if (!ok_) {
     return false;
   }
-  // Query progressive flags, then primary DA. Supported terminals answer flags
-  // before (or along with) DA; unsupported answer only DA.
   write("\x1b[?u");
   write("\x1b[c");
   flush();
@@ -308,7 +294,6 @@ bool Terminal::enable_keyboard_protocol() {
   flush();
   g_keyboard_pushed = true;
 
-  // Verify flags 2 and 8 stuck.
   write("\x1b[?u");
   flush();
   const auto deadline =
@@ -322,7 +307,6 @@ bool Terminal::enable_keyboard_protocol() {
       continue;
     }
     buf.push_back(static_cast<char>(ch));
-    // Expect CSI ? <n> u
     if (buf.size() >= 4 && buf[0] == '\x1b' && buf[1] == '[') {
       if (buf.back() == 'u' && buf[2] == '?') {
         flags = std::atoi(buf.c_str() + 3);
@@ -427,10 +411,18 @@ void Terminal::enter_alt_screen() {
   write("\x1b[?1049h");
   alt_screen_ = true;
   g_alt_screen = true;
+  write("\x1b[?1004h");
+  focus_reporting_ = true;
+  g_focus_reporting = true;
 }
 
 void Terminal::leave_alt_screen() {
   disable_keyboard_protocol();
+  if (focus_reporting_) {
+    write("\x1b[?1004l");
+    focus_reporting_ = false;
+    g_focus_reporting = false;
+  }
   write("\x1b[?1049l");
   alt_screen_ = false;
   g_alt_screen = false;

@@ -31,7 +31,7 @@ void Bag::set_randomizer(Randomizer mode) {
 
 void Bag::reseed(std::uint64_t seed) {
   rng_.seed(seed);
-  index_ = kMaxBagSize;  // force refill for bag modes
+  index_ = kMaxBagSize;
   if (!is_bagless(mode_)) {
     refill();
   }
@@ -61,7 +61,6 @@ void Bag::refill() {
     }
     bag_[static_cast<std::size_t>(size_++)] = generate_shape(rng_);
   } else {
-    // SevenBag / SevenPlusOne (and safe default)
     for (int i = 0; i < 7; ++i) {
       bag_[static_cast<std::size_t>(size_++)] =
           PieceSpec::classic(kAllPieces[static_cast<std::size_t>(i)]);

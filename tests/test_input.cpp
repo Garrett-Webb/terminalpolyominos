@@ -204,6 +204,28 @@ void test_key_up_aware_intervals() {
   TP_CHECK(acts[1] == tp::Action::SoftDrop);
 }
 
+void test_focus_reporting_decode() {
+  tp::KeyDecoder d;
+  tp::KeyEvent ev;
+
+  feed_str(d, "\x1b[O");
+  TP_CHECK(d.poll(ev));
+  TP_CHECK(ev.key == tp::Key::FocusOut);
+
+  feed_str(d, "\x1b[I");
+  TP_CHECK(d.poll(ev));
+  TP_CHECK(ev.key == tp::Key::FocusIn);
+
+  // Focus-out must not be confused with legacy arrows.
+  feed_str(d, "\x1b[C");
+  TP_CHECK(d.poll(ev));
+  TP_CHECK(ev.key == tp::Key::Right);
+
+  feed_str(d, "\x1b[O");
+  TP_CHECK(d.poll(ev));
+  TP_CHECK(ev.key == tp::Key::FocusOut);
+}
+
 void test_keyboard_protocol_parse() {
   TP_CHECK(tp::parse_keyboard_protocol("auto") == tp::KeyboardProtocol::Auto);
   TP_CHECK(tp::parse_keyboard_protocol("kitty") == tp::KeyboardProtocol::Kitty);
@@ -224,6 +246,7 @@ int main() {
   test_custom_keybinds();
   test_default_scores_key();
   test_kitty_csi_u_decode();
+  test_focus_reporting_decode();
   test_key_up_aware_hold_survives_rotate();
   test_key_up_aware_intervals();
   test_keyboard_protocol_parse();

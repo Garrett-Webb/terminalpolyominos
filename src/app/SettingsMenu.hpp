@@ -12,8 +12,6 @@
 
 namespace tp {
 
-// Editable rows in the settings screen (order = display order).
-// Visual gaps are inserted by the renderer before LinesPerLevel and ClearScores.
 enum class SettingsItem : std::uint8_t {
   MoveInterval = 0,
   SoftDropInterval,
@@ -52,7 +50,6 @@ inline constexpr int kSettingsItemCount = static_cast<int>(SettingsItem::Count);
          item == SettingsItem::ClearScores;
 }
 
-// Visual row of an item's content line (0-based), including gap rows above it.
 [[nodiscard]] inline int settings_item_visual_row(int item_idx) {
   int gaps = 0;
   for (int i = 0; i <= item_idx; ++i) {
@@ -77,7 +74,7 @@ inline constexpr int kSettingsItemCount = static_cast<int>(SettingsItem::Count);
 struct SettingsMenuView {
   const Settings& draft;
   int selected = 0;
-  int scroll = 0;  // first visible visual row (not item index)
+  int scroll = 0;
   bool capturing = false;
   bool confirming_clear = false;
   bool dirty = false;
@@ -85,7 +82,6 @@ struct SettingsMenuView {
   std::string_view clear_buf{};
 };
 
-// Pure menu state: browse / adjust / rebind / save commands.
 class SettingsMenu {
  public:
   enum class Result : std::uint8_t { None, Saved, Back, ClearedScores };
@@ -94,7 +90,6 @@ class SettingsMenu {
   void on_key(const KeyEvent& ev);
   [[nodiscard]] Result take_result();
 
-  // Keep selection on-screen for the given viewport height (visual rows).
   void ensure_visible(int viewport_rows);
 
   [[nodiscard]] const Settings& draft() const { return draft_; }

@@ -17,7 +17,6 @@ enum class KeyboardProtocol : std::uint8_t {
   Legacy,    // never query / push - OS-repeat model
 };
 
-// One physical key: arrow/special (`Key::Left` …) or a printable char (`Key::Char`).
 struct KeySpec {
   Key key = Key::None;
   char ch = 0;
@@ -27,7 +26,6 @@ struct KeySpec {
   [[nodiscard]] static std::optional<KeySpec> from_token(std::string_view t);
 };
 
-// Remappable controls. Defaults match the locked gameplay controls.
 struct Keybinds {
   std::vector<KeySpec> left;
   std::vector<KeySpec> right;
@@ -47,7 +45,6 @@ struct Keybinds {
 
   [[nodiscard]] std::optional<Action> action_for(const KeyEvent& ev) const;
   [[nodiscard]] std::string format_list(const std::vector<KeySpec>& keys) const;
-  // Replace `dest` and drop any overlapping tokens from other actions.
   bool set_list(std::vector<KeySpec>& dest, std::string_view csv);
 
  private:
@@ -55,18 +52,13 @@ struct Keybinds {
 };
 
 struct InputConfig {
-  // Auto-repeat rate while a direction is held (after DAS / OS-repeat arms ARR).
   int move_interval_ms = 35;
   int soft_drop_interval_ms = 35;
-  // Legacy: silence before treating a direction as released.
-  // Enhanced (Kitty): delay after the first step before ARR starts (DAS).
   int release_ms = 90;
   KeyboardProtocol keyboard_protocol = KeyboardProtocol::Auto;
   Keybinds keys{};
 };
 
-// Movement uses a gravity-style timer. Instant actions (hard drop, rotate, …)
-// fire immediately and are never swallowed by hold state.
 class Input {
  public:
   explicit Input(InputConfig config = {});
@@ -74,7 +66,6 @@ class Input {
   void set_config(InputConfig config) { config_ = config; }
   void reset();
 
-  // When true: press/release sticks (Kitty protocol). When false: legacy silence model.
   void set_key_up_aware(bool on);
   [[nodiscard]] bool key_up_aware() const { return key_up_aware_; }
 
@@ -90,10 +81,10 @@ class Input {
 
   struct Stick {
     bool held = false;
-    bool repeating = false;  // ARR active (legacy: after OS key-repeat; enhanced: after DAS)
-    int held_ms = 0;         // time since press (enhanced DAS)
-    int since_event_ms = 0;  // silence / keep-alive watchdog
-    int step_acc_ms = 0;     // ARR accumulator - only advanced while repeating
+    bool repeating = false;
+    int held_ms = 0;
+    int since_event_ms = 0;
+    int step_acc_ms = 0;
   };
 
   void clear_dirs();

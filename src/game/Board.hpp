@@ -20,7 +20,6 @@ class Board {
   void set(int x, int y, PieceType type, int color = -1);
   void clear_cell(int x, int y);
 
-  // Returns number of lines cleared (0–4).
   int clear_full_lines();
 
   [[nodiscard]] bool line_full(int y) const;

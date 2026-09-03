@@ -50,6 +50,11 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.5.5" date="2026-09-03">
+      <description>
+        <p>Automatically pause when the terminal window loses focus; comment cleanup.</p>
+      </description>
+    </release>
     <release version="0.5.4" date="2026-09-02">
       <description>
         <p>Flathub packaging updates: GTK/VTE GUI launcher, sandbox XDG paths, GNOME 50 runtime, VTE 0.84.1.</p>

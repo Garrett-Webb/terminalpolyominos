@@ -53,8 +53,6 @@ class Renderer {
                  const GameOverExtras* game_over = nullptr);
   void draw_settings(const SettingsMenuView& menu);
 
-  // Next draw starts from a blank grid (needed when switching screens that
-  // do not repaint every cell - e.g. settings -> title).
   void invalidate();
 
   [[nodiscard]] static Layout compute_layout(TermSize sz);

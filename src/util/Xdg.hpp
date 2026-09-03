@@ -10,20 +10,12 @@ namespace tp {
 
 [[nodiscard]] std::string xdg_config_home();
 [[nodiscard]] std::string xdg_data_home();
-
 [[nodiscard]] std::string tpoly_config_dir();
 [[nodiscard]] std::string tpoly_data_dir();
-
-// Preferred settings path: <config_dir>/.tpolyrc
 [[nodiscard]] std::string tpoly_rc_path();
-
-// Preferred high-scores path: <data_dir>/scores
 [[nodiscard]] std::string tpoly_scores_path();
-
-// Legacy: ~/.tpolyrc (read fallback only)
 [[nodiscard]] std::string tpoly_rc_legacy_path();
 
-// mkdir -p; returns false on failure
 bool ensure_dir(const std::string& path);
 
 }  // namespace tp

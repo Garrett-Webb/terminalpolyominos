@@ -2,7 +2,7 @@
 <component type="desktop-application">
   <id>io.github.garrett_webb.terminalpolyominos</id>
   <name>terminalpolyominos</name>
-  <summary>Colored polyomino stacking game for Unix terminals</summary>
+  <summary>Polyomino stacking game</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <developer_name>Garrett Webb</developer_name>
@@ -30,6 +30,8 @@
     <keyword>tui</keyword>
     <keyword>stacking</keyword>
     <keyword>blocks</keyword>
+    <keyword>game</keyword>
+    <keyword>relaxing</keyword>
   </keywords>
   <url type="homepage">https://github.com/Garrett-Webb/terminalpolyominos</url>
   <url type="bugtracker">https://github.com/Garrett-Webb/terminalpolyominos/issues</url>
@@ -41,12 +43,24 @@
   </provides>
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/Garrett-Webb/terminalpolyominos/main/packaging/screenshots/screenshot_normalmode.png</image>
-      <caption>Classic gameplay in a terminal</caption>
+      <image>https://raw.githubusercontent.com/Garrett-Webb/terminalpolyominos/main/packaging/screenshots/1_screenshot_gui_menu_screen.png</image>
+      <caption>Title screen in the GUI launcher</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/Garrett-Webb/terminalpolyominos/main/packaging/screenshots/screenshot_freakmode.png</image>
-      <caption>Freak randomizer with 256-color palette</caption>
+      <image>https://raw.githubusercontent.com/Garrett-Webb/terminalpolyominos/main/packaging/screenshots/2_screenshot_gui_freakmode_play.png</image>
+      <caption>Freak-mode gameplay in the GUI launcher</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/Garrett-Webb/terminalpolyominos/main/packaging/screenshots/3_screenshot_gui_settings.png</image>
+      <caption>In-game settings menu</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/Garrett-Webb/terminalpolyominos/main/packaging/screenshots/4_screenshot_term_classic_play.png</image>
+      <caption>Classic gameplay in an external terminal</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/Garrett-Webb/terminalpolyominos/main/packaging/screenshots/5_screenshot_term_freakmode_play.png</image>
+      <caption>Freak randomizer with 256-color palette in a terminal</caption>
     </screenshot>
   </screenshots>
   <releases>

@@ -64,6 +64,11 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.5.6" date="2026-09-04">
+      <description>
+        <p>Updated Flathub screenshots and store metadata.</p>
+      </description>
+    </release>
     <release version="0.5.5" date="2026-09-03">
       <description>
         <p>Automatically pause when the terminal window loses focus; comment cleanup.</p>

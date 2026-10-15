@@ -1,10 +1,13 @@
 #include "app/App.hpp"
 
+#include "battle/LocalMediatorTransport.hpp"
+
 #include <chrono>
 #include <cctype>
 #include <ctime>
 #include <random>
 #include <thread>
+#include <utility>
 
 namespace tp {
 namespace {
@@ -38,6 +41,9 @@ std::uint64_t App::fresh_seed() const {
 }
 
 bool App::terminal_ok_size() const {
+  if (screen_ == Screen::Battle) {
+    return Renderer::fits_battle_min(term_.size());
+  }
   return Renderer::fits_min(term_.size());
 }
 
@@ -67,11 +73,32 @@ void App::setup_keyboard() {
 }
 
 void App::pause_if_not_focused() {
+  if (screen_ == Screen::Battle) {
+    return;  // Battle does not auto-pause
+  }
   if (screen_ != Screen::Playing || game_.state().phase != Phase::Playing) {
     return;
   }
   game_.apply(Action::Pause);
   input_.reset();
+  ui_dirty_ = true;
+}
+
+void App::open_battle() {
+  battle_ = std::make_unique<BattleSession>(std::make_unique<LocalMediatorTransport>());
+  battle_menu_.open();
+  screen_ = Screen::Battle;
+  input_.reset();
+  renderer_.invalidate();
+  ui_dirty_ = true;
+}
+
+void App::close_battle() {
+  battle_.reset();
+  battle_menu_.clear_abort();
+  screen_ = Screen::Title;
+  input_.reset();
+  renderer_.invalidate();
   ui_dirty_ = true;
 }
 
@@ -273,7 +300,13 @@ void App::handle_action(Action action) {
       start_game();
     } else if (action == Action::Scores) {
       open_scores();
+    } else if (action == Action::Battle) {
+      open_battle();
     }
+    return;
+  }
+
+  if (screen_ == Screen::Battle) {
     return;
   }
 
@@ -320,9 +353,14 @@ void App::pump_keys() {
       continue;
     }
 
-    // Title / scores / name-edit: press only. Settings accepts Repeat for hold-nav.
-    const bool ui_press_only =
-        screen_ == Screen::Title || screen_ == Screen::Scores || pending_name_edit_;
+    // Title / scores / battle UI / name-edit: press only. Settings accepts Repeat for hold-nav.
+    const bool battle_ui = screen_ == Screen::Battle && battle_ &&
+                           (battle_menu_.phase() != BattleMenuPhase::Session ||
+                            !battle_->playing());
+    const bool ui_press_only = screen_ == Screen::Title || screen_ == Screen::Scores ||
+                               pending_name_edit_ || battle_ui ||
+                               (screen_ == Screen::Battle &&
+                                battle_menu_.phase() == BattleMenuPhase::ForfeitConfirm);
     if (ui_press_only && ev.type != KeyEventType::Press) {
       continue;
     }
@@ -335,6 +373,25 @@ void App::pump_keys() {
         return;
       }
       continue;
+    }
+
+    if (screen_ == Screen::Battle && battle_) {
+      const bool playing = battle_->playing() && battle_menu_.phase() == BattleMenuPhase::Session;
+      if (!playing || ev.key == Key::Esc || battle_menu_.phase() == BattleMenuPhase::ForfeitConfirm) {
+        battle_menu_.on_key(ev, *battle_);
+        if (battle_menu_.wants_abort_to_title() || battle_->wants_leave_to_title()) {
+          close_battle();
+        }
+        ui_dirty_ = true;
+        if (!playing) {
+          continue;
+        }
+        // Esc handled by menu (forfeit confirm); don't also feed Input Pause.
+        if (ev.key == Key::Esc || battle_menu_.phase() == BattleMenuPhase::ForfeitConfirm) {
+          continue;
+        }
+      }
+      // Playing: fall through to input_ for DAS.
     }
 
     if (pending_name_edit_ && screen_ == Screen::Playing) {
@@ -368,7 +425,13 @@ void App::pump_keys() {
 
     input_.on_key(ev);
     for (Action action : input_.drain()) {
-      handle_action(action);
+      if (screen_ == Screen::Battle && battle_ && battle_->playing() &&
+          battle_menu_.phase() == BattleMenuPhase::Session) {
+        battle_->apply_action(action);
+        ui_dirty_ = true;
+      } else {
+        handle_action(action);
+      }
       if (quit_) {
         return;
       }
@@ -403,10 +466,17 @@ int App::run() {
       elapsed_ms = 50;
     }
 
-    if (screen_ != Screen::Settings && screen_ != Screen::Scores && !pending_name_edit_) {
+    if (screen_ != Screen::Settings && screen_ != Screen::Scores && !pending_name_edit_ &&
+        !(screen_ == Screen::Battle && battle_menu_.phase() != BattleMenuPhase::Session)) {
       input_.tick(elapsed_ms);
       for (Action action : input_.drain()) {
-        handle_action(action);
+        if (screen_ == Screen::Battle && battle_ && battle_->playing() &&
+            battle_menu_.phase() == BattleMenuPhase::Session) {
+          battle_->apply_action(action);
+          ui_dirty_ = true;
+        } else {
+          handle_action(action);
+        }
         if (quit_) {
           break;
         }
@@ -427,6 +497,14 @@ int App::run() {
     } else if (screen_ == Screen::Title || screen_ == Screen::Settings ||
                screen_ == Screen::Scores) {
       // Static until interaction dirties UI.
+    } else if (screen_ == Screen::Battle && battle_) {
+      battle_->tick(elapsed_ms);
+      if (battle_->wants_leave_to_title()) {
+        close_battle();
+        need_draw = true;
+      } else {
+        need_draw = true;  // battle views change often
+      }
     } else {
       if (game_.state().phase == Phase::Playing && elapsed_ms > 0) {
         game_.tick(elapsed_ms);
@@ -457,6 +535,41 @@ int App::run() {
         renderer_.draw_settings(menu_.view());
       } else if (screen_ == Screen::Scores) {
         renderer_.draw_scores(scores_, scores_view_, settings_.input.keys);
+      } else if (screen_ == Screen::Battle && battle_) {
+        const auto& sv = battle_->view();
+        const bool show_board = sv.phase == BattleSessionPhase::Playing ||
+                                sv.phase == BattleSessionPhase::MatchReady ||
+                                sv.phase == BattleSessionPhase::Rematch;
+        if (show_board && battle_menu_.phase() != BattleMenuPhase::Consent) {
+          BattleHud hud = sv.hud;
+          if (sv.phase == BattleSessionPhase::MatchReady) {
+            hud.banner = "GET READY";
+          } else if (sv.phase == BattleSessionPhase::Rematch) {
+            hud.banner = "REMATCH";
+          }
+          if (sv.self != nullptr) {
+            renderer_.draw_battle(*sv.self, sv.self_config, sv.opp, hud, settings_.input.keys);
+          }
+          if (battle_menu_.phase() == BattleMenuPhase::ForfeitConfirm ||
+              sv.phase == BattleSessionPhase::Rematch ||
+              sv.phase == BattleSessionPhase::MatchReady) {
+            // Prompt drawn after board for forfeit/rematch/ready text.
+            const auto mv = battle_menu_.view(*battle_);
+            if (battle_menu_.phase() == BattleMenuPhase::ForfeitConfirm ||
+                sv.phase == BattleSessionPhase::Rematch) {
+              renderer_.draw_battle_prompt(mv.title, mv.line1, mv.line2, mv.line3, {},
+                                           settings_.input.keys);
+            }
+          }
+        } else {
+          const auto mv = battle_menu_.view(*battle_);
+          std::string entry;
+          if (mv.show_token_entry) {
+            entry = mv.token_buf;
+          }
+          renderer_.draw_battle_prompt(mv.title, mv.line1, mv.line2, mv.line3, entry,
+                                       settings_.input.keys);
+        }
       } else {
         GameOverExtras extras;
         const GameOverExtras* extras_ptr = nullptr;
@@ -478,6 +591,7 @@ int App::run() {
     const bool idle = screen_ == Screen::Title || screen_ == Screen::Settings ||
                       screen_ == Screen::Scores || !size_ok ||
                       (screen_ == Screen::Playing && game_.state().phase != Phase::Playing) ||
+                      (screen_ == Screen::Battle && battle_ && !battle_->playing()) ||
                       pending_name_edit_;
     const int target_ms = idle ? kIdleFrameMs : kFrameMs;
 

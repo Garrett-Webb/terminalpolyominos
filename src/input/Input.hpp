@@ -40,6 +40,7 @@ struct Keybinds {
   std::vector<KeySpec> restart;
   std::vector<KeySpec> settings;
   std::vector<KeySpec> scores;
+  std::vector<KeySpec> battle;
 
   Keybinds();  // built-in defaults
 

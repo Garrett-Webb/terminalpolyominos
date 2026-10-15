@@ -156,6 +156,7 @@ Keybinds::Keybinds() {
   restart = {special(Key::Enter), letter('r')};
   settings = {letter('o')};
   scores = {letter('h')};
+  battle = {letter('b')};
 }
 
 std::optional<Action> Keybinds::action_for(const KeyEvent& ev) const {
@@ -201,6 +202,9 @@ std::optional<Action> Keybinds::action_for(const KeyEvent& ev) const {
   }
   if (any_match(scores, ev)) {
     return Action::Scores;
+  }
+  if (any_match(battle, ev)) {
+    return Action::Battle;
   }
   return std::nullopt;
 }
@@ -281,6 +285,7 @@ void Keybinds::remove_from_others(const std::vector<KeySpec>& claimed,
   maybe_strip(restart);
   maybe_strip(settings);
   maybe_strip(scores);
+  maybe_strip(battle);
 }
 
 Input::Input(InputConfig config) : config_(config) {}
@@ -502,6 +507,7 @@ void Input::on_key(const KeyEvent& ev) {
     case Action::Hold:
     case Action::Settings:
     case Action::Scores:
+    case Action::Battle:
       queue(*action);
       return;
     case Action::Pause:

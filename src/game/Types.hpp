@@ -79,6 +79,7 @@ enum class PieceType : std::uint8_t {
   J,
   L,
   Custom,
+  Garbage,  // battle garbage cells (not a spawnable piece)
   Count,
 };
 
@@ -127,6 +128,7 @@ enum class Action : std::uint8_t {
   Restart,
   Settings,
   Scores,
+  Battle,
 };
 
 enum class Phase : std::uint8_t {
@@ -153,6 +155,11 @@ struct ActivePiece {
   [[nodiscard]] PieceType kind() const { return spec.kind; }
 };
 
+inline constexpr int kBattleLinesPerLevel = 20;
+inline constexpr int kGarbageColor256 = 244;  // gray
+inline constexpr int kGarbageColor16 = 8;     // bright black / gray
+inline constexpr int kMaxGarbagePackets = 16;
+
 struct GameConfig {
   int lock_delay_ms = kLockDelayMs;
   int lines_per_level = kLinesPerLevel;
@@ -163,6 +170,17 @@ struct GameConfig {
   PlayMode play_mode = PlayMode::Endless;
   bool freak_colors = true;
   bool colors_256 = true;
+  bool battle = false;  // enables garbage / attack; solo path when false
+};
+
+struct BattleOutgoing {
+  int lines_sent = 0;    // after cancel
+  int cancelled = 0;
+  int raw_send = 0;      // before cancel
+  int lines_cleared = 0;
+  int combo = 0;
+  bool b2b = false;
+  bool perfect_clear = false;
 };
 
 }  // namespace tp

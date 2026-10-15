@@ -80,4 +80,53 @@ int Board::clear_full_lines() {
   return cleared;
 }
 
+void Board::shift_up(int rows) {
+  if (rows <= 0) {
+    return;
+  }
+  if (rows >= kBoardHeight) {
+    clear();
+    return;
+  }
+  for (int y = 0; y < kBoardHeight - rows; ++y) {
+    for (int x = 0; x < kBoardWidth; ++x) {
+      at(x, y) = at(x, y + rows);
+    }
+  }
+  for (int y = kBoardHeight - rows; y < kBoardHeight; ++y) {
+    for (int x = 0; x < kBoardWidth; ++x) {
+      clear_cell(x, y);
+    }
+  }
+}
+
+void Board::inject_garbage_row(int hole_col, int color) {
+  int hole = hole_col;
+  if (hole < 0) {
+    hole = 0;
+  } else if (hole >= kBoardWidth) {
+    hole = kBoardWidth - 1;
+  }
+  shift_up(1);
+  const int y = kBoardHeight - 1;
+  for (int x = 0; x < kBoardWidth; ++x) {
+    if (x == hole) {
+      clear_cell(x, y);
+    } else {
+      set(x, y, PieceType::Garbage, color);
+    }
+  }
+}
+
+bool Board::empty() const {
+  for (int y = 0; y < kBoardHeight; ++y) {
+    for (int x = 0; x < kBoardWidth; ++x) {
+      if (at(x, y).filled) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 }  // namespace tp

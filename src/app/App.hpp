@@ -1,6 +1,8 @@
 #pragma once
 
+#include "app/BattleMenu.hpp"
 #include "app/SettingsMenu.hpp"
+#include "battle/BattleSession.hpp"
 #include "game/Game.hpp"
 #include "input/Input.hpp"
 #include "render/Renderer.hpp"
@@ -10,6 +12,7 @@
 #include "util/Settings.hpp"
 
 #include <cstdint>
+#include <memory>
 #include <string>
 
 namespace tp {
@@ -21,7 +24,7 @@ class App {
   int run();
 
  private:
-  enum class Screen : std::uint8_t { Title, Playing, Settings, Scores };
+  enum class Screen : std::uint8_t { Title, Playing, Settings, Scores, Battle };
 
   void pump_keys();
   void pause_if_not_focused();
@@ -31,6 +34,8 @@ class App {
   void close_settings();
   void open_scores();
   void close_scores();
+  void open_battle();
+  void close_battle();
   void apply_settings(const Settings& s);
   void setup_keyboard();
   void start_game();
@@ -43,11 +48,13 @@ class App {
   Terminal& term_;
   Settings settings_;
   SettingsMenu menu_;
+  BattleMenu battle_menu_;
   HighScores scores_;
   KeyDecoder keys_;
   Input input_;
   Renderer renderer_;
   Game game_;
+  std::unique_ptr<BattleSession> battle_;
   Screen screen_ = Screen::Title;
   Screen settings_return_ = Screen::Title;
   bool quit_ = false;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "app/SettingsMenu.hpp"
+#include "battle/OppBoardView.hpp"
 #include "game/Game.hpp"
 #include "input/Input.hpp"
 #include "terminal/Terminal.hpp"
@@ -15,6 +16,8 @@ namespace tp {
 
 inline constexpr int kMinTermRows = 24;
 inline constexpr int kMinTermCols = 68;
+inline constexpr int kMinBattleRows = 24;
+inline constexpr int kMinBattleCols = 80;
 
 struct Layout {
   int scale = 1;
@@ -30,6 +33,23 @@ struct Layout {
   int field_h = 22;
   int field_w = 32;
   int hint_row = 1;
+};
+
+struct BattleLayout {
+  Layout self{};
+  int opp_row = 1;
+  int opp_col = 1;
+  int opp_cell_w = 1;
+  int opp_cell_h = 1;
+  int opp_inner_w = 10;
+  int opp_inner_h = 20;
+  int opp_box_w = 12;
+  int meter_row = 1;
+  int meter_col = 1;
+  int meter_inner_w = 4;
+  int meter_box_w = 6;
+  int hint_row = 1;
+  bool opp_scale1 = false;
 };
 
 struct GameOverExtras {
@@ -51,12 +71,19 @@ class Renderer {
   void draw_too_small(const Keybinds& keybinds);
   void draw_game(const GameState& state, const GameConfig& config, const Keybinds& keybinds,
                  const GameOverExtras* game_over = nullptr);
+  void draw_battle(const GameState& self, const GameConfig& config, const OppBoardView& opp,
+                   const BattleHud& hud, const Keybinds& keybinds);
+  void draw_battle_prompt(std::string_view title, std::string_view line1, std::string_view line2,
+                          std::string_view line3, std::string_view token_entry,
+                          const Keybinds& keybinds);
   void draw_settings(const SettingsMenuView& menu);
 
   void invalidate();
 
   [[nodiscard]] static Layout compute_layout(TermSize sz);
   [[nodiscard]] static bool fits_min(TermSize sz);
+  [[nodiscard]] static BattleLayout compute_battle_layout(TermSize sz);
+  [[nodiscard]] static bool fits_battle_min(TermSize sz);
 
  private:
   struct Glyph {
@@ -106,7 +133,7 @@ class Renderer {
   };
 
   void cell(Canvas& f, const Layout& lay, int row, int col, bool filled, int color, bool ghost,
-            bool flash = false);
+            bool flash = false, char mono_fill = '#');
   void piece_preview(Canvas& f, const Layout& lay, int row, int col, int panel_w,
                      const PieceSpec& spec, bool freak_colors);
   void hline(Canvas& f, int row, int col, int inner_width, char edge, char fill);

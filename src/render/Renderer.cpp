@@ -21,11 +21,24 @@ constexpr int kHintRows = 2;
 constexpr int kTopPad = 0;
 constexpr int kGap = 2;
 constexpr int kBlockAspect = 3;
+constexpr int kBattleGap = 1;
+constexpr int kBattleSideInnerMin = 9;  // keeps battle min width at 80 cols
+constexpr int kBattleMeterInner = 4;
+constexpr int kBattleOppScale1Cols = 110;
 
 int cell_width_for(int scale) { return kBlockAspect * scale; }
 int cell_height_for(int scale) { return scale; }
 
 int side_inner_width(int cell_w) { return std::max(4 * cell_w, 14); }
+
+int battle_side_inner_width(int cell_w) {
+  // Solo uses max(4*cell_w, 14). Battle must fit HOLD|FIELD|NEXT|OPP|IN in 80 cols
+  // at scale 1, so keep side panels tight until cells grow.
+  if (cell_w <= 3) {
+    return kBattleSideInnerMin;
+  }
+  return std::max(4 * cell_w, kBattleSideInnerMin);
+}
 
 bool layout_fits(TermSize sz, int scale) {
   const int cell_w = cell_width_for(scale);
@@ -36,6 +49,24 @@ bool layout_fits(TermSize sz, int scale) {
   const int field_h = kVisibleRows * cell_h + 2;
   const int need_cols = side + kGap + field_w + kGap + side;
   const int need_rows = kTopPad + field_h + kHintRows;
+  return sz.cols >= need_cols && sz.rows >= need_rows;
+}
+
+bool battle_layout_fits(TermSize sz, int self_scale, bool opp_scale1) {
+  const int cell_w = cell_width_for(self_scale);
+  const int cell_h = cell_height_for(self_scale);
+  const int side_inner = battle_side_inner_width(cell_w);
+  const int side = side_inner + 2;
+  const int field_w = kBoardWidth * cell_w + 2;
+  const int field_h = kVisibleRows * cell_h + 2;
+  const int opp_cw = opp_scale1 ? cell_width_for(1) : 1;
+  const int opp_ch = opp_scale1 ? cell_height_for(1) : 1;
+  const int opp_box_w = kBoardWidth * opp_cw + 2;
+  const int opp_box_h = kVisibleRows * opp_ch + 2;
+  const int meter_box = kBattleMeterInner + 2;
+  const int need_cols =
+      side + kBattleGap + field_w + kBattleGap + side + kBattleGap + opp_box_w + kBattleGap + meter_box;
+  const int need_rows = kTopPad + std::max(field_h, opp_box_h) + kHintRows;
   return sz.cols >= need_cols && sz.rows >= need_rows;
 }
 
@@ -259,6 +290,67 @@ void Renderer::invalidate() { canvas_.request_clear(); }
 
 bool Renderer::fits_min(TermSize sz) { return layout_fits(sz, 1); }
 
+bool Renderer::fits_battle_min(TermSize sz) {
+  // Geometry can squeeze into ~76 cols; product minimum stays 80×24.
+  return sz.cols >= kMinBattleCols && sz.rows >= kMinBattleRows &&
+         battle_layout_fits(sz, 1, false);
+}
+
+BattleLayout Renderer::compute_battle_layout(TermSize sz) {
+  BattleLayout bl;
+  int self_scale = 1;
+  for (int s = 1; s <= 12; ++s) {
+    const bool want_opp1 = sz.cols >= kBattleOppScale1Cols;
+    if (battle_layout_fits(sz, s, want_opp1) || (want_opp1 && battle_layout_fits(sz, s, false))) {
+      self_scale = s;
+    } else {
+      break;
+    }
+  }
+  const bool opp_scale1 =
+      sz.cols >= kBattleOppScale1Cols && battle_layout_fits(sz, self_scale, true);
+
+  Layout& lay = bl.self;
+  lay.scale = self_scale;
+  lay.cell_w = cell_width_for(self_scale);
+  lay.cell_h = cell_height_for(self_scale);
+  lay.side_inner_w = battle_side_inner_width(lay.cell_w);
+  lay.field_w = kBoardWidth * lay.cell_w + 2;
+  lay.field_h = kVisibleRows * lay.cell_h + 2;
+
+  bl.opp_scale1 = opp_scale1;
+  bl.opp_cell_w = opp_scale1 ? cell_width_for(1) : 1;
+  bl.opp_cell_h = opp_scale1 ? cell_height_for(1) : 1;
+  bl.opp_inner_w = kBoardWidth * bl.opp_cell_w;
+  bl.opp_inner_h = kVisibleRows * bl.opp_cell_h;
+  bl.opp_box_w = bl.opp_inner_w + 2;
+  bl.meter_inner_w = kBattleMeterInner;
+  bl.meter_box_w = bl.meter_inner_w + 2;
+
+  const int side = lay.side_inner_w + 2;
+  const int total_w = side + kBattleGap + lay.field_w + kBattleGap + side + kBattleGap +
+                      bl.opp_box_w + kBattleGap + bl.meter_box_w;
+  const int total_h = kTopPad + std::max(lay.field_h, bl.opp_inner_h + 2) + kHintRows;
+
+  const int origin_col = std::max(1, (sz.cols - total_w) / 2 + 1);
+  const int origin_row = std::max(1, (sz.rows - total_h) / 2 + 1);
+
+  lay.hold_col = origin_col;
+  lay.hold_row = origin_row + kTopPad;
+  lay.field_col = origin_col + side + kBattleGap;
+  lay.field_row = lay.hold_row;
+  lay.next_col = lay.field_col + lay.field_w + kBattleGap;
+  lay.next_row = lay.field_row;
+  lay.hint_row = lay.field_row + lay.field_h + 1;
+
+  bl.opp_col = lay.next_col + side + kBattleGap;
+  bl.opp_row = lay.field_row;
+  bl.meter_col = bl.opp_col + bl.opp_box_w + kBattleGap;
+  bl.meter_row = lay.field_row;
+  bl.hint_row = lay.hint_row;
+  return bl;
+}
+
 Layout Renderer::compute_layout(TermSize sz) {
   Layout lay;
   int scale = 1;
@@ -325,7 +417,7 @@ void Renderer::draw_box_title(Canvas& f, int row, int col, int inner_w, std::str
 }
 
 void Renderer::cell(Canvas& f, const Layout& lay, int row, int col, bool filled, int color,
-                    bool ghost, bool flash) {
+                    bool ghost, bool flash, char mono_fill) {
   for (int dy = 0; dy < lay.cell_h; ++dy) {
     f.cup(row + dy, col);
     if (flash) {
@@ -337,7 +429,7 @@ void Renderer::cell(Canvas& f, const Layout& lay, int row, int col, bool filled,
         f.reset();
       } else {
         for (int i = 0; i < lay.cell_w; ++i) {
-          f.text('#');
+          f.text(mono_fill);
         }
       }
       continue;
@@ -352,7 +444,9 @@ void Renderer::cell(Canvas& f, const Layout& lay, int row, int col, bool filled,
       if (term_.color_enabled()) {
         f.fg(color);
       }
-      if (lay.cell_w <= 2) {
+      if (lay.cell_w <= 1) {
+        f.text(term_.color_enabled() ? '.' : '.');
+      } else if (lay.cell_w == 2) {
         f.text(term_.color_enabled() ? "[]" : "()");
       } else {
         f.text('[');
@@ -370,16 +464,17 @@ void Renderer::cell(Canvas& f, const Layout& lay, int row, int col, bool filled,
         f.text(' ');
       }
       f.reset();
+    } else if (lay.cell_w <= 1) {
+      f.text(mono_fill);
+    } else if (lay.cell_w == 2) {
+      f.text(mono_fill);
+      f.text(mono_fill);
     } else {
-      if (lay.cell_w <= 2) {
-        f.text("[]");
-      } else {
-        f.text('[');
-        for (int i = 0; i < lay.cell_w - 2; ++i) {
-          f.text('#');
-        }
-        f.text(']');
+      f.text('[');
+      for (int i = 0; i < lay.cell_w - 2; ++i) {
+        f.text(mono_fill);
       }
+      f.text(']');
     }
   }
 }
@@ -490,6 +585,8 @@ void Renderer::draw_title(const HighScores& scores, Randomizer current, PlayMode
     actions += " settings   ";
     actions += keybinds.format_list(keybinds.scores);
     actions += " scores   ";
+    actions += keybinds.format_list(keybinds.battle);
+    actions += " battle   ";
     actions += keybinds.format_list(keybinds.quit);
     actions += " quit";
     pad_line(y++, actions);
@@ -1238,6 +1335,342 @@ std::string settings_value(const Settings& s, SettingsItem item) {
 }
 
 }  // namespace
+
+void Renderer::draw_battle(const GameState& self, const GameConfig& config, const OppBoardView& opp,
+                           const BattleHud& hud, const Keybinds& keybinds) {
+  const bool freak_colors = config.freak_colors;
+  const TermSize sz = term_.size();
+  const BattleLayout bl = compute_battle_layout(sz);
+  const Layout& lay = bl.self;
+  canvas_.begin(sz);
+
+  const int inner_w = kBoardWidth * lay.cell_w;
+  const int field_inner_h = kVisibleRows * lay.cell_h;
+  const int field_bottom = lay.field_row + field_inner_h + 1;
+  const int side_inner_h = field_inner_h;
+
+  draw_box_title(canvas_, lay.hold_row, lay.hold_col, lay.side_inner_w, "HOLD");
+  for (int y = 0; y < side_inner_h; ++y) {
+    canvas_.cup(lay.hold_row + 1 + y, lay.hold_col);
+    canvas_.text('|');
+    canvas_.cup(lay.hold_row + 1 + y, lay.hold_col + 1 + lay.side_inner_w);
+    canvas_.text('|');
+  }
+  hline(canvas_, field_bottom, lay.hold_col, lay.side_inner_w, '+', '-');
+
+  const int hold_content_col = lay.hold_col + 1;
+  if (self.hold.has_value()) {
+    piece_preview(canvas_, lay, lay.hold_row + 2, hold_content_col, lay.side_inner_w, *self.hold,
+                  freak_colors);
+  }
+
+  const int stats_row = field_bottom - 4;
+  canvas_.cup(stats_row, hold_content_col);
+  canvas_.text("IN ");
+  canvas_.number(hud.pending_incoming);
+  for (int i = 0; i < 6; ++i) {
+    canvas_.text(' ');
+  }
+  canvas_.cup(stats_row + 1, hold_content_col);
+  canvas_.text("Lines ");
+  canvas_.number(self.lines);
+  for (int i = 0; i < 4; ++i) {
+    canvas_.text(' ');
+  }
+  canvas_.cup(stats_row + 2, hold_content_col);
+  if (self.combo > 0) {
+    canvas_.text("Combo ");
+    canvas_.number(self.combo);
+  } else {
+    canvas_.text("Combo -");
+  }
+  for (int i = 0; i < 4; ++i) {
+    canvas_.text(' ');
+  }
+  canvas_.cup(stats_row + 3, hold_content_col);
+  if (self.b2b_ready) {
+    if (term_.color_enabled()) {
+      canvas_.bold();
+      canvas_.fg(3);
+    }
+    canvas_.text("B2B");
+    canvas_.reset();
+  } else {
+    canvas_.text("   ");
+  }
+  if (hud.last_sent > 0 || hud.last_cancelled > 0) {
+    canvas_.text(' ');
+    if (hud.last_cancelled > 0) {
+      canvas_.text("C");
+      canvas_.number(hud.last_cancelled);
+    }
+    if (hud.last_sent > 0) {
+      canvas_.text("+");
+      canvas_.number(hud.last_sent);
+    }
+  }
+
+  hline(canvas_, lay.field_row, lay.field_col, inner_w, '+', '-');
+
+  bool ghost_mask[kBoardHeight][kBoardWidth]{};
+  bool active_mask[kBoardHeight][kBoardWidth]{};
+  bool lock_flash_mask[kBoardHeight][kBoardWidth]{};
+  int active_color = 7;
+  int ghost_color = 7;
+
+  if (self.lock_flash_ms > 0 && self.lock_flash.alive) {
+    Offset cells[kMaxPieceCells];
+    int n = 0;
+    piece_cells(self.lock_flash.spec, self.lock_flash.rotation, cells, n);
+    for (int i = 0; i < n; ++i) {
+      const int x = self.lock_flash.x + cells[i].x;
+      const int y = self.lock_flash.y + cells[i].y;
+      if (x >= 0 && x < kBoardWidth && y >= 0 && y < kBoardHeight) {
+        lock_flash_mask[y][x] = true;
+      }
+    }
+  }
+  if (self.ghost.alive) {
+    Offset cells[kMaxPieceCells];
+    int n = 0;
+    piece_cells(self.ghost.spec, self.ghost.rotation, cells, n);
+    ghost_color = piece_color(self.ghost.spec, freak_colors, term_.colors_256());
+    for (int i = 0; i < n; ++i) {
+      const int x = self.ghost.x + cells[i].x;
+      const int y = self.ghost.y + cells[i].y;
+      if (x >= 0 && x < kBoardWidth && y >= 0 && y < kBoardHeight) {
+        ghost_mask[y][x] = true;
+      }
+    }
+  }
+  if (self.active.alive) {
+    Offset cells[kMaxPieceCells];
+    int n = 0;
+    piece_cells(self.active.spec, self.active.rotation, cells, n);
+    active_color = piece_color(self.active.spec, freak_colors, term_.colors_256());
+    for (int i = 0; i < n; ++i) {
+      const int x = self.active.x + cells[i].x;
+      const int y = self.active.y + cells[i].y;
+      if (x >= 0 && x < kBoardWidth && y >= 0 && y < kBoardHeight) {
+        active_mask[y][x] = true;
+      }
+    }
+  }
+
+  for (int vr = 0; vr < kVisibleRows; ++vr) {
+    const int by = vr + kBufferRows;
+    const int row = lay.field_row + 1 + vr * lay.cell_h;
+    for (int dy = 0; dy < lay.cell_h; ++dy) {
+      canvas_.cup(row + dy, lay.field_col);
+      canvas_.text('|');
+      canvas_.cup(row + dy, lay.field_col + 1 + inner_w);
+      canvas_.text('|');
+    }
+    for (int x = 0; x < kBoardWidth; ++x) {
+      const int col = lay.field_col + 1 + x * lay.cell_w;
+      const Cell& c = self.board.at(x, by);
+      const bool is_garbage = c.filled && c.type == PieceType::Garbage;
+      const char mono = is_garbage ? '@' : '#';
+      if (self.clear_flash_ms > 0 && self.clear_rows[static_cast<std::size_t>(by)]) {
+        cell(canvas_, lay, row, col, true, 7, false, true, mono);
+      } else if (lock_flash_mask[by][x]) {
+        cell(canvas_, lay, row, col, true, 7, false, true, mono);
+      } else if (active_mask[by][x]) {
+        cell(canvas_, lay, row, col, true, active_color, false, false, mono);
+      } else if (c.filled) {
+        cell(canvas_, lay, row, col, true, c.color, false, false, mono);
+      } else if (ghost_mask[by][x]) {
+        cell(canvas_, lay, row, col, true, ghost_color, true);
+      } else {
+        cell(canvas_, lay, row, col, false, 7, false);
+      }
+    }
+  }
+  hline(canvas_, field_bottom, lay.field_col, inner_w, '+', '-');
+
+  draw_box_title(canvas_, lay.next_row, lay.next_col, lay.side_inner_w, "NEXT");
+  for (int y = 0; y < side_inner_h; ++y) {
+    canvas_.cup(lay.next_row + 1 + y, lay.next_col);
+    canvas_.text('|');
+    canvas_.cup(lay.next_row + 1 + y, lay.next_col + 1 + lay.side_inner_w);
+    canvas_.text('|');
+  }
+  hline(canvas_, field_bottom, lay.next_col, lay.side_inner_w, '+', '-');
+  const int next_content_col = lay.next_col + 1;
+  const int preview_stride = 4 * lay.cell_h;
+  const int shown = std::max(1, std::min(self.next_count, kNextQueueMax));
+  for (int i = 0; i < shown; ++i) {
+    piece_preview(canvas_, lay, lay.next_row + 1 + i * preview_stride, next_content_col,
+                  lay.side_inner_w, self.next[static_cast<std::size_t>(i)], freak_colors);
+  }
+
+  // Opponent compact field.
+  Layout opp_lay = lay;
+  opp_lay.cell_w = bl.opp_cell_w;
+  opp_lay.cell_h = bl.opp_cell_h;
+  const int opp_bottom = bl.opp_row + bl.opp_inner_h + 1;
+  draw_box_title(canvas_, bl.opp_row, bl.opp_col, bl.opp_inner_w, "OPP");
+  for (int y = 0; y < bl.opp_inner_h; ++y) {
+    canvas_.cup(bl.opp_row + 1 + y, bl.opp_col);
+    canvas_.text('|');
+    canvas_.cup(bl.opp_row + 1 + y, bl.opp_col + 1 + bl.opp_inner_w);
+    canvas_.text('|');
+  }
+  hline(canvas_, opp_bottom, bl.opp_col, bl.opp_inner_w, '+', '-');
+
+  for (int vr = 0; vr < kVisibleRows; ++vr) {
+    const int row = bl.opp_row + 1 + vr * bl.opp_cell_h;
+    for (int x = 0; x < kBoardWidth; ++x) {
+      const int col = bl.opp_col + 1 + x * bl.opp_cell_w;
+      const bool flash = opp.clear_flash_row[static_cast<std::size_t>(vr)];
+      const bool sil = opp.silhouette[static_cast<std::size_t>(vr)][static_cast<std::size_t>(x)];
+      const bool occ = opp.occupied[static_cast<std::size_t>(vr)][static_cast<std::size_t>(x)];
+      if (flash) {
+        cell(canvas_, opp_lay, row, col, true, 7, false, true, '*');
+      } else if (sil) {
+        const int sil_color = term_.colors_256() ? 250 : 7;
+        cell(canvas_, opp_lay, row, col, true, sil_color, false, false, 'o');
+      } else if (occ) {
+        int oc = opp.color[static_cast<std::size_t>(vr)][static_cast<std::size_t>(x)];
+        if (oc == 0) {
+          oc = term_.colors_256() ? 244 : 8;
+        }
+        cell(canvas_, opp_lay, row, col, true, oc, false, false, '*');
+      } else {
+        cell(canvas_, opp_lay, row, col, false, 7, false);
+      }
+    }
+  }
+
+  // Incoming garbage meter (vertical bar).
+  draw_box_title(canvas_, bl.meter_row, bl.meter_col, bl.meter_inner_w, "IN");
+  const int meter_h = field_inner_h;
+  for (int y = 0; y < meter_h; ++y) {
+    canvas_.cup(bl.meter_row + 1 + y, bl.meter_col);
+    canvas_.text('|');
+    canvas_.cup(bl.meter_row + 1 + y, bl.meter_col + 1 + bl.meter_inner_w);
+    canvas_.text('|');
+  }
+  hline(canvas_, field_bottom, bl.meter_col, bl.meter_inner_w, '+', '-');
+  const int filled = std::min(meter_h, std::max(0, hud.pending_incoming));
+  for (int y = 0; y < meter_h; ++y) {
+    const bool on = y >= (meter_h - filled);
+    canvas_.cup(bl.meter_row + 1 + y, bl.meter_col + 1);
+    if (on) {
+      if (term_.color_enabled()) {
+        canvas_.bg(term_.colors_256() ? 196 : 1);
+        for (int i = 0; i < bl.meter_inner_w; ++i) {
+          canvas_.text(' ');
+        }
+        canvas_.reset();
+      } else {
+        for (int i = 0; i < bl.meter_inner_w; ++i) {
+          canvas_.text('=');
+        }
+      }
+    } else {
+      for (int i = 0; i < bl.meter_inner_w; ++i) {
+        canvas_.text(' ');
+      }
+    }
+  }
+
+  // Opp HUD under opp box if room; else squeeze into hint.
+  canvas_.cup(opp_bottom + 1, bl.opp_col);
+  canvas_.text("H:");
+  canvas_.number(opp.height);
+  canvas_.text(" ");
+  if (opp.combo > 0) {
+    canvas_.text("c");
+    canvas_.number(opp.combo);
+  }
+  if (opp.b2b) {
+    canvas_.text(" B2B");
+  }
+
+  // Hint row.
+  canvas_.cup(bl.hint_row, 1);
+  for (int i = 0; i < sz.cols; ++i) {
+    canvas_.text(' ');
+  }
+  std::string hint;
+  if (hud.offline) {
+    hint = "HOT-SEAT (offline)";
+  }
+  if (!hud.banner.empty()) {
+    if (!hint.empty()) {
+      hint += "  ";
+    }
+    hint += hud.banner;
+  }
+  if (hint.empty()) {
+    hint = "Esc forfeit";
+  } else {
+    hint += "  Esc forfeit";
+  }
+  const std::string quit = keybinds.format_list(keybinds.quit);
+  if (!quit.empty()) {
+    hint += "  ";
+    hint += quit;
+    hint += " quit";
+  }
+  if (static_cast<int>(hint.size()) > sz.cols) {
+    hint.resize(static_cast<std::size_t>(sz.cols));
+  }
+  const int hint_left = std::max(1, (sz.cols - static_cast<int>(hint.size())) / 2 + 1);
+  canvas_.cup(bl.hint_row, hint_left);
+  canvas_.text(hint);
+
+  canvas_.present(term_);
+}
+
+void Renderer::draw_battle_prompt(std::string_view title, std::string_view line1,
+                                  std::string_view line2, std::string_view line3,
+                                  std::string_view token_entry, const Keybinds& keybinds) {
+  const TermSize sz = term_.size();
+  canvas_.begin(sz);
+  const int content_w = std::min(56, std::max(20, sz.cols - 4));
+  const int col = std::max(1, (sz.cols - content_w) / 2 + 1);
+  int row = std::max(1, sz.rows / 2 - 4);
+
+  auto line = [&](std::string_view s, int fg = -1, bool bold = false) {
+    canvas_.cup(row, col);
+    for (int i = 0; i < content_w; ++i) {
+      canvas_.text(' ');
+    }
+    if (static_cast<int>(s.size()) > content_w) {
+      s = s.substr(0, static_cast<std::size_t>(content_w));
+    }
+    const int left = std::max(0, (content_w - static_cast<int>(s.size())) / 2);
+    canvas_.cup(row, col + left);
+    if (fg >= 0 && term_.color_enabled()) {
+      if (bold) {
+        canvas_.bold();
+      }
+      canvas_.fg(fg);
+    }
+    canvas_.text(s);
+    canvas_.reset();
+    ++row;
+  };
+
+  line(title, 6, true);
+  ++row;
+  if (!line1.empty()) {
+    line(line1);
+  }
+  if (!line2.empty()) {
+    line(line2, 3, false);
+  }
+  if (!line3.empty()) {
+    line(line3);
+  }
+  if (!token_entry.empty()) {
+    line(std::string("> ") + std::string(token_entry) + "_", 7, false);
+  }
+  (void)keybinds;
+  canvas_.present(term_);
+}
 
 void Renderer::draw_settings(const SettingsMenuView& menu) {
   const TermSize sz = term_.size();

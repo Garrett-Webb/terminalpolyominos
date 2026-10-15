@@ -1,6 +1,7 @@
 #pragma once
 
 #include "game/Bag.hpp"
+#include "game/BattleAttack.hpp"
 #include "game/Board.hpp"
 #include "game/SrsKicks.hpp"
 #include "game/Types.hpp"
@@ -44,8 +45,14 @@ class Game {
 
   [[nodiscard]] const GameState& state() const { return state_; }
   [[nodiscard]] const GameConfig& config() const { return config_; }
+  [[nodiscard]] bool battle() const { return config_.battle; }
 
   [[nodiscard]] bool consume_dirty();
+
+  // Battle: enqueue garbage packets (applied at next spawn_next). hole_col clamped 0..9.
+  void queue_garbage(int rows, int hole_col);
+  [[nodiscard]] int pending_incoming() const;
+  [[nodiscard]] std::optional<BattleOutgoing> consume_outgoing();
 
   // Test helpers
   void set_active_for_test(ActivePiece piece);
@@ -54,6 +61,16 @@ class Game {
   void set_lines_for_test(int lines);
 
  private:
+  struct GarbagePacket {
+    int rows = 0;
+    int hole_col = 0;
+  };
+
+  void apply_battle_config_constraints();
+  void inject_pending_garbage();
+  void reduce_pending_incoming(int rows);
+  void finish_battle_attack(bool perfect_clear);
+  [[nodiscard]] int garbage_color() const;
   void mark_dirty() { dirty_ = true; }
 
   [[nodiscard]] bool fits(const ActivePiece& piece) const;
@@ -100,6 +117,17 @@ class Game {
   int last_kick_dx_ = 0;
   int last_kick_dy_ = 0;
   SpinType pending_spin_ = SpinType::None;
+
+  // Battle attack stash (set at lock; resolved after collapse).
+  bool pending_attack_ = false;
+  int pending_attack_lines_ = 0;
+  SpinType pending_attack_spin_ = SpinType::None;
+  int pending_attack_combo_ = 0;
+  bool pending_attack_b2b_ = false;
+
+  std::array<GarbagePacket, kMaxGarbagePackets> garbage_queue_{};
+  int garbage_queue_n_ = 0;
+  std::optional<BattleOutgoing> outgoing_{};
 };
 
 }  // namespace tp

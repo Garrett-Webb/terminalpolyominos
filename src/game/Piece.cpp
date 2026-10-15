@@ -143,6 +143,8 @@ int piece_color(PieceType type, bool colors_256) {
         return 208;  // orange
       case PieceType::Custom:
         return 15;
+      case PieceType::Garbage:
+        return kGarbageColor256;
       case PieceType::Count:
         break;
     }
@@ -166,6 +168,8 @@ int piece_color(PieceType type, bool colors_256) {
       return 11;  // bright yellow (orange stand-in)
     case PieceType::Custom:
       return 7;
+    case PieceType::Garbage:
+      return kGarbageColor16;
     case PieceType::Count:
       break;
   }
@@ -230,6 +234,8 @@ const char* piece_name(PieceType type) {
       return "L";
     case PieceType::Custom:
       return "?";
+    case PieceType::Garbage:
+      return "G";
     case PieceType::Count:
       break;
   }

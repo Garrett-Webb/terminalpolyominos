@@ -11,6 +11,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_library(tp_game STATIC
   src/game/Bag.cpp
+  src/game/BattleAttack.cpp
   src/game/Board.cpp
   src/game/Piece.cpp
   src/game/ShapeGen.cpp
@@ -18,6 +19,14 @@ add_library(tp_game STATIC
   src/game/Game.cpp)
 target_include_directories(tp_game PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_compile_options(tp_game PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
+add_library(tp_battle STATIC
+  src/battle/OppBoardView.cpp
+  src/battle/LocalMediatorTransport.cpp
+  src/battle/BattleSession.cpp)
+target_include_directories(tp_battle PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(tp_battle PUBLIC tp_game)
+target_compile_options(tp_battle PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_executable(terminalpolyominos
   src/main.cpp
@@ -29,9 +38,10 @@ add_executable(terminalpolyominos
   src/util/Settings.cpp
   src/util/HighScores.cpp
   src/app/SettingsMenu.cpp
+  src/app/BattleMenu.cpp
   src/app/App.cpp)
 target_include_directories(terminalpolyominos PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-target_link_libraries(terminalpolyominos PRIVATE tp_game)
+target_link_libraries(terminalpolyominos PRIVATE tp_game tp_battle)
 target_compile_definitions(terminalpolyominos PRIVATE "TP_VERSION=\"${PROJECT_VERSION}\"")
 target_compile_options(terminalpolyominos PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
@@ -89,6 +99,40 @@ target_include_directories(tp_tests PRIVATE
 target_link_libraries(tp_tests PRIVATE tp_game)
 target_compile_options(tp_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME tp_tests COMMAND tp_tests)
+
+add_executable(tp_battle_tests tests/test_battle.cpp)
+target_include_directories(tp_battle_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+target_link_libraries(tp_battle_tests PRIVATE tp_game)
+target_compile_options(tp_battle_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME tp_battle_tests COMMAND tp_battle_tests)
+
+add_executable(tp_battle_layout_tests
+  tests/test_battle_layout.cpp
+  src/render/Renderer.cpp
+  src/terminal/Terminal.cpp
+  src/terminal/Keys.cpp
+  src/input/Input.cpp
+  src/util/Xdg.cpp
+  src/util/Settings.cpp
+  src/util/HighScores.cpp
+  src/app/SettingsMenu.cpp)
+target_include_directories(tp_battle_layout_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+target_link_libraries(tp_battle_layout_tests PRIVATE tp_game tp_battle)
+target_compile_definitions(tp_battle_layout_tests PRIVATE "TP_VERSION=\"${PROJECT_VERSION}\"")
+target_compile_options(tp_battle_layout_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME tp_battle_layout_tests COMMAND tp_battle_layout_tests)
+
+add_executable(tp_battle_session_tests tests/test_battle_session.cpp)
+target_include_directories(tp_battle_session_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+target_link_libraries(tp_battle_session_tests PRIVATE tp_game tp_battle)
+target_compile_options(tp_battle_session_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME tp_battle_session_tests COMMAND tp_battle_session_tests)
 
 add_executable(tp_input_tests tests/test_input.cpp src/input/Input.cpp src/terminal/Keys.cpp)
 target_include_directories(tp_input_tests PRIVATE

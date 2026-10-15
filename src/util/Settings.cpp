@@ -94,6 +94,10 @@ void apply_kv(Settings& s, const std::string& key, const std::string& value) {
     (void)kb.set_list(kb.scores, value);
     return;
   }
+  if (key == "key_battle") {
+    (void)kb.set_list(kb.battle, value);
+    return;
+  }
   if (key == "play_mode") {
     const std::string v = trim(value);
     std::string lower;
@@ -263,7 +267,8 @@ std::string Settings::serialize() const {
       << "key_quit=" << k.format_list(k.quit) << '\n'
       << "key_restart=" << k.format_list(k.restart) << '\n'
       << "key_settings=" << k.format_list(k.settings) << '\n'
-      << "key_scores=" << k.format_list(k.scores) << '\n';
+      << "key_scores=" << k.format_list(k.scores) << '\n'
+      << "key_battle=" << k.format_list(k.battle) << '\n';
   return out.str();
 }
 
@@ -324,9 +329,14 @@ Settings Settings::load_or_create() {
   if (s.input.keys.scores.empty()) {
     restored_scores = s.input.keys.set_list(s.input.keys.scores, "h");
   }
-  if (restored_scores || read_file(primary).empty() ||
+  bool restored_battle = false;
+  if (s.input.keys.battle.empty()) {
+    restored_battle = s.input.keys.set_list(s.input.keys.battle, "b");
+  }
+  if (restored_scores || restored_battle || read_file(primary).empty() ||
       text.find("key_settings=") == std::string::npos ||
       text.find("key_scores=") == std::string::npos ||
+      text.find("key_battle=") == std::string::npos ||
       text.find("play_mode=") == std::string::npos ||
       text.find("randomizer=") == std::string::npos ||
       text.find("next_count=") == std::string::npos ||

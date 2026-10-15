@@ -22,7 +22,14 @@ class Board {
 
   int clear_full_lines();
 
+  // Shift stack toward the top (y=0); bottom row cleared. Cells in row 0 are discarded.
+  void shift_up(int rows = 1);
+
+  // One nearly-full garbage row at the bottom with a single hole. Clamps hole_col to 0..9.
+  void inject_garbage_row(int hole_col, int color = -1);
+
   [[nodiscard]] bool line_full(int y) const;
+  [[nodiscard]] bool empty() const;
 
   [[nodiscard]] static constexpr int width() { return kBoardWidth; }
   [[nodiscard]] static constexpr int height() { return kBoardHeight; }

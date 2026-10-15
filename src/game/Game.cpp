@@ -86,13 +86,24 @@ int clamp_next_count(int n) {
 
 Game::Game(GameConfig config) : config_(config) {
   config_.next_count = clamp_next_count(config_.next_count);
+  apply_battle_config_constraints();
   reset(1);
+}
+
+void Game::apply_battle_config_constraints() {
+  if (!config_.battle) {
+    return;
+  }
+  config_.randomizer = Randomizer::SevenBag;
+  config_.play_mode = PlayMode::Endless;
+  config_.lines_per_level = kBattleLinesPerLevel;
 }
 
 void Game::set_config(GameConfig config) {
   config.next_count = clamp_next_count(config.next_count);
   const int old_n = state_.next_count;
   config_ = config;
+  apply_battle_config_constraints();
   bag_.set_randomizer(config_.randomizer);
   state_.next_count = config_.next_count;
   if (state_.next_count > old_n) {
@@ -114,6 +125,7 @@ void Game::reset(std::uint64_t seed) {
   state_.phase = Phase::Playing;
   state_.next_count = clamp_next_count(config_.next_count);
   config_.next_count = state_.next_count;
+  apply_battle_config_constraints();
   bag_.set_randomizer(config_.randomizer);
   bag_.reseed(seed);
   has_hold_ = false;
@@ -123,10 +135,121 @@ void Game::reset(std::uint64_t seed) {
   locking_ = false;
   pending_clear_count_ = 0;
   pending_spin_ = SpinType::None;
+  pending_attack_ = false;
+  pending_attack_lines_ = 0;
+  pending_attack_spin_ = SpinType::None;
+  pending_attack_combo_ = 0;
+  pending_attack_b2b_ = false;
+  garbage_queue_n_ = 0;
+  outgoing_.reset();
   clear_rotate_flag();
   refresh_next_preview();
   spawn_next();
   mark_dirty();
+}
+
+int Game::garbage_color() const {
+  return piece_color(PieceType::Garbage, config_.colors_256);
+}
+
+void Game::queue_garbage(int rows, int hole_col) {
+  if (!config_.battle || rows <= 0) {
+    return;
+  }
+  int hole = hole_col;
+  if (hole < 0) {
+    hole = 0;
+  } else if (hole >= kBoardWidth) {
+    hole = kBoardWidth - 1;
+  }
+  if (garbage_queue_n_ < kMaxGarbagePackets) {
+    garbage_queue_[static_cast<std::size_t>(garbage_queue_n_++)] = {rows, hole};
+  } else {
+    garbage_queue_[static_cast<std::size_t>(kMaxGarbagePackets - 1)].rows += rows;
+  }
+  mark_dirty();
+}
+
+int Game::pending_incoming() const {
+  int total = 0;
+  for (int i = 0; i < garbage_queue_n_; ++i) {
+    total += garbage_queue_[static_cast<std::size_t>(i)].rows;
+  }
+  return total;
+}
+
+std::optional<BattleOutgoing> Game::consume_outgoing() {
+  auto out = outgoing_;
+  outgoing_.reset();
+  return out;
+}
+
+void Game::reduce_pending_incoming(int rows) {
+  int left = rows;
+  while (left > 0 && garbage_queue_n_ > 0) {
+    auto& pkt = garbage_queue_[0];
+    if (pkt.rows <= left) {
+      left -= pkt.rows;
+      for (int i = 1; i < garbage_queue_n_; ++i) {
+        garbage_queue_[static_cast<std::size_t>(i - 1)] = garbage_queue_[static_cast<std::size_t>(i)];
+      }
+      --garbage_queue_n_;
+    } else {
+      pkt.rows -= left;
+      left = 0;
+    }
+  }
+}
+
+void Game::inject_pending_garbage() {
+  if (garbage_queue_n_ <= 0) {
+    return;
+  }
+  const int color = garbage_color();
+  for (int i = 0; i < garbage_queue_n_; ++i) {
+    const auto& pkt = garbage_queue_[static_cast<std::size_t>(i)];
+    for (int r = 0; r < pkt.rows; ++r) {
+      state_.board.inject_garbage_row(pkt.hole_col, color);
+    }
+  }
+  garbage_queue_n_ = 0;
+  mark_dirty();
+}
+
+void Game::finish_battle_attack(bool perfect_clear) {
+  if (!config_.battle || !pending_attack_) {
+    pending_attack_ = false;
+    return;
+  }
+  AttackInput in;
+  in.lines_cleared = pending_attack_lines_;
+  in.spin = pending_attack_spin_;
+  in.b2b_bonus = pending_attack_b2b_;
+  in.combo_after_clear = pending_attack_combo_;
+  in.perfect_clear = perfect_clear;
+
+  const AttackResult result = compute_send(in);
+  int cancelled = 0;
+  const int outgoing = apply_cancel(pending_incoming(), result.total_send, &cancelled);
+  reduce_pending_incoming(cancelled);
+
+  BattleOutgoing ev;
+  ev.raw_send = result.total_send;
+  ev.cancelled = cancelled;
+  ev.lines_sent = outgoing;
+  ev.lines_cleared = pending_attack_lines_;
+  ev.combo = pending_attack_combo_;
+  ev.b2b = pending_attack_b2b_;
+  ev.perfect_clear = perfect_clear;
+  if (ev.raw_send > 0 || ev.cancelled > 0) {
+    outgoing_ = ev;
+  }
+
+  pending_attack_ = false;
+  pending_attack_lines_ = 0;
+  pending_attack_spin_ = SpinType::None;
+  pending_attack_combo_ = 0;
+  pending_attack_b2b_ = false;
 }
 
 void Game::apply(Action action) {
@@ -201,6 +324,7 @@ void Game::apply(Action action) {
     case Action::Restart:
     case Action::Settings:
     case Action::Scores:
+    case Action::Battle:
       break;
   }
 }
@@ -342,7 +466,14 @@ ActivePiece Game::ghost_of(const ActivePiece& piece) const {
 }
 
 int Game::gravity_ms_per_row() const {
-  const int level = state_.level < 1 ? 1 : state_.level;
+  int level = state_.level < 1 ? 1 : state_.level;
+  if (config_.battle) {
+    // Independent of solo lines_per_level display path; battle uses kBattleLinesPerLevel.
+    level = 1 + state_.lines / kBattleLinesPerLevel;
+    if (level < 1) {
+      level = 1;
+    }
+  }
   const int ms = 800 - (level - 1) * 50;
   return ms < 50 ? 50 : ms;
 }
@@ -494,8 +625,21 @@ void Game::lock_active() {
   pending_spin_ = spin;
 
   const bool has_clear = pending_clear_count_ > 0;
+  const bool b2b_armed_before = state_.b2b_ready;
+  const bool difficult =
+      pending_clear_count_ > 0 && (spin != SpinType::None || pending_clear_count_ >= 4);
 
   add_lock_score(pending_clear_count_, pending_spin_);
+
+  if (config_.battle && has_clear) {
+    pending_attack_ = true;
+    pending_attack_lines_ = pending_clear_count_;
+    pending_attack_spin_ = spin;
+    pending_attack_combo_ = state_.combo;
+    pending_attack_b2b_ = difficult && b2b_armed_before;
+  } else {
+    pending_attack_ = false;
+  }
   pending_spin_ = SpinType::None;
 
   if (config_.piece_lock_flash_ms > 0) {
@@ -545,19 +689,30 @@ void Game::finish_line_clear() {
   pending_clear_count_ = 0;
   state_.clear_flash_ms = 0;
   state_.hold_used = false;
-  const int goal = play_mode_line_goal(config_.play_mode);
-  if (goal > 0 && state_.lines >= goal) {
-    state_.active = {};
-    state_.ghost = {};
-    state_.phase = Phase::Finished;
-    mark_dirty();
-    return;
+
+  if (config_.battle && pending_attack_) {
+    finish_battle_attack(state_.board.empty());
+  } else {
+    pending_attack_ = false;
+  }
+
+  if (!config_.battle) {
+    const int goal = play_mode_line_goal(config_.play_mode);
+    if (goal > 0 && state_.lines >= goal) {
+      state_.active = {};
+      state_.ghost = {};
+      state_.phase = Phase::Finished;
+      mark_dirty();
+      return;
+    }
   }
   spawn_next();
   mark_dirty();
 }
 
 void Game::spawn_next() {
+  inject_pending_garbage();
+
   const PieceSpec type = state_.next[0];
   const int n = state_.next_count;
   for (int i = 0; i < n - 1; ++i) {

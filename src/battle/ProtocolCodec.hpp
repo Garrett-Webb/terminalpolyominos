@@ -33,6 +33,8 @@ inline constexpr std::uint8_t kMsgPing = 18;
 inline constexpr std::uint8_t kMsgPong = 19;
 inline constexpr std::uint8_t kMsgError = 20;
 inline constexpr std::uint8_t kMsgBye = 21;
+inline constexpr std::uint8_t kMsgOppSnapshot = 22;
+inline constexpr std::uint8_t kMsgStackSnap = 23;
 
 inline constexpr std::uint8_t kClearFlagB2b = 1;
 inline constexpr std::uint8_t kClearFlagPc = 2;

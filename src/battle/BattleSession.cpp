@@ -1,7 +1,9 @@
 #include "battle/BattleSession.hpp"
 
+#include "battle/OppBoardView.hpp"
 #include "battle/ProtocolCodec.hpp"
 
+#include <cstring>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -127,6 +129,46 @@ void BattleSession::start_self_match(std::uint64_t seed, int countdown_ms) {
   result_ = BattleResultKind::None;
   view_.hud.last_sent = 0;
   view_.hud.last_cancelled = 0;
+  snap_cooldown_ms_ = 0;
+  snap_pending_ = true;
+  have_last_snap_ = false;
+  std::memset(last_snap_bits_, 0, sizeof(last_snap_bits_));
+  if (!transport_->offline()) {
+    view_.opp = OppBoardView{};
+  }
+}
+
+void BattleSession::maybe_send_stack_snap(int elapsed_ms) {
+  if (!transport_ || transport_->offline() || !transport_->alive()) {
+    return;
+  }
+  if (phase_ != BattleSessionPhase::Playing && phase_ != BattleSessionPhase::MatchReady) {
+    return;
+  }
+
+  std::uint8_t bits[kStackSnapBytes];
+  pack_stack_bits(self_.state(), bits);
+  const bool changed =
+      !have_last_snap_ || std::memcmp(bits, last_snap_bits_, kStackSnapBytes) != 0;
+  if (changed) {
+    snap_pending_ = true;
+    std::memcpy(last_snap_bits_, bits, kStackSnapBytes);
+    have_last_snap_ = true;
+  }
+
+  if (snap_cooldown_ms_ > 0) {
+    snap_cooldown_ms_ -= elapsed_ms;
+  }
+  if (!snap_pending_ || snap_cooldown_ms_ > 0) {
+    return;
+  }
+
+  EvStackSnap snap;
+  snap.seq = snap_seq_++;
+  std::memcpy(snap.bits.data(), last_snap_bits_, kStackSnapBytes);
+  transport_->send(snap);
+  snap_pending_ = false;
+  snap_cooldown_ms_ = 200;
 }
 
 void BattleSession::on_self_topout() {
@@ -158,8 +200,7 @@ void BattleSession::handle_inbound(const InboundEvent& ev) {
         } else if constexpr (std::is_same_v<T, EvOppSnapshot>) {
           view_.opp = msg.view;
         } else if constexpr (std::is_same_v<T, EvPoseRelay>) {
-          // Pose-only preview: WP5 may draw active piece; keep session stable for now.
-          (void)msg;
+          (void)msg;  // stack snaps are the online opp view
         } else if constexpr (std::is_same_v<T, EvMatchOver>) {
           EvMatchOver mapped = msg;
           if (msg.winner_side != 255) {
@@ -235,9 +276,15 @@ void BattleSession::tick(int elapsed_ms) {
   if (phase_ == BattleSessionPhase::MatchReady) {
     countdown_ms_ -= elapsed_ms;
     transport_->tick(elapsed_ms);
+    maybe_send_stack_snap(elapsed_ms);
     if (countdown_ms_ <= 0) {
       countdown_ms_ = 0;
       phase_ = BattleSessionPhase::Playing;
+    }
+    if (!transport_->offline() && !transport_->alive()) {
+      phase_ = BattleSessionPhase::Rematch;
+      result_ = BattleResultKind::Disconnect;
+      rematch_ms_ = 15000;
     }
     drain_transport();
     sync_view();
@@ -279,6 +326,8 @@ void BattleSession::tick(int elapsed_ms) {
       toast_ms_ = 800;
     }
 
+    maybe_send_stack_snap(elapsed_ms);
+
     if (toast_ms_ > 0) {
       toast_ms_ -= elapsed_ms;
       if (toast_ms_ <= 0) {
@@ -290,6 +339,12 @@ void BattleSession::tick(int elapsed_ms) {
 
     if (self_.state().phase == Phase::GameOver) {
       on_self_topout();
+    }
+
+    if (!transport_->offline() && !transport_->alive()) {
+      phase_ = BattleSessionPhase::Rematch;
+      result_ = BattleResultKind::Disconnect;
+      rematch_ms_ = 15000;
     }
 
     drain_transport();

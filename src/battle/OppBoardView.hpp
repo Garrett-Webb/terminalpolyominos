@@ -22,6 +22,12 @@ struct OppBoardView {
 
 [[nodiscard]] OppBoardView make_opp_view(const GameState& state);
 
+inline constexpr int kStackSnapBytes = 25;  // 10×20 bitpack
+
+// Locked visible stack only (no active piece). Wire layout: row-major top→bottom, MSB-first.
+void pack_stack_bits(const GameState& state, std::uint8_t out[kStackSnapBytes]);
+[[nodiscard]] OppBoardView opp_view_from_stack_bits(const std::uint8_t bits[kStackSnapBytes]);
+
 struct BattleHud {
   int pending_incoming = 0;
   int last_sent = 0;

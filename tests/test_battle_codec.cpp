@@ -145,6 +145,30 @@ void test_token_show_lobby() {
   TP_CHECK(std::get<tp::EvLobbyState>(*inbound).role == 0);
 }
 
+void test_stack_snap_roundtrip() {
+  tp::EvStackSnap snap;
+  snap.seq = 7;
+  snap.bits[0] = 0xF0;
+  snap.bits[24] = 0x0F;
+  auto bytes = tp::encode_outbound(snap);
+  TP_CHECK(!bytes.empty());
+  auto frame = tp::try_decode_frame(bytes);
+  TP_CHECK(frame && frame->msg_type == tp::kMsgStackSnap);
+  TP_CHECK(frame->payload.size() == 29);
+
+  // Peer receives OppSnapshot (same payload, different type).
+  frame->msg_type = tp::kMsgOppSnapshot;
+  auto inbound = tp::decode_inbound(*frame);
+  TP_CHECK(inbound && std::holds_alternative<tp::EvOppSnapshot>(*inbound));
+  const auto& view = std::get<tp::EvOppSnapshot>(*inbound).view;
+  TP_CHECK(view.occupied[0][0]);
+  TP_CHECK(view.occupied[0][1]);
+  TP_CHECK(view.occupied[0][2]);
+  TP_CHECK(view.occupied[0][3]);
+  TP_CHECK(!view.occupied[0][4]);
+  TP_CHECK(!view.silhouette[0][0]);
+}
+
 void test_pose_ping_bye() {
   tp::EvPose p;
   p.seq = 1;
@@ -181,6 +205,7 @@ int main() {
   test_clear_and_garbage();
   test_match_over_map();
   test_token_show_lobby();
+  test_stack_snap_roundtrip();
   test_pose_ping_bye();
   return tp::test::summary("tp_battle_codec_tests");
 }

@@ -174,6 +174,10 @@ std::vector<std::uint8_t> encode_outbound(const OutboundEvent& ev, CodecError* e
           f.payload.push_back(static_cast<std::uint8_t>(e.y));
           f.payload.push_back(e.r);
           f.payload.push_back(e.piece_id);
+        } else if constexpr (std::is_same_v<T, EvStackSnap>) {
+          f.msg_type = kMsgStackSnap;
+          append_u32(f.payload, e.seq);
+          f.payload.insert(f.payload.end(), e.bits.begin(), e.bits.end());
         } else if constexpr (std::is_same_v<T, EvTopOut>) {
           f.msg_type = kMsgTopOut;
         } else if constexpr (std::is_same_v<T, EvForfeit>) {
@@ -243,6 +247,15 @@ std::optional<InboundEvent> decode_inbound(const Frame& frame, CodecError* err) 
       g.hole_col = p[1];
       g.event_seq = read_u32(p.data() + 2);
       return g;
+    }
+    case kMsgOppSnapshot: {
+      if (p.size() != 4u + static_cast<std::size_t>(kStackSnapBytes)) {
+        set_err(err, CodecError::BadPayload);
+        return std::nullopt;
+      }
+      EvOppSnapshot snap;
+      snap.view = opp_view_from_stack_bits(p.data() + 4);
+      return snap;
     }
     case kMsgPose: {
       if (p.size() != 8) {

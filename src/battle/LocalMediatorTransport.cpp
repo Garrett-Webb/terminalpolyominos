@@ -124,8 +124,8 @@ void LocalMediatorTransport::send(const OutboundEvent& ev) {
           push(show);
         } else if constexpr (std::is_same_v<T, EvPing>) {
           push(EvPong{});
-        } else if constexpr (std::is_same_v<T, EvPose>) {
-          // ignore
+        } else if constexpr (std::is_same_v<T, EvPose> || std::is_same_v<T, EvStackSnap>) {
+          // ignore — hot-seat uses local OppSnapshot
         } else if constexpr (std::is_same_v<T, EvBye>) {
           alive_ = false;
         }

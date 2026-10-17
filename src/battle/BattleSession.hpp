@@ -68,6 +68,7 @@ class BattleSession {
   void sync_view();
   void start_self_match(std::uint64_t seed, int countdown_ms);
   void on_self_topout();
+  void maybe_send_stack_snap(int elapsed_ms);
   GameConfig make_config() const;
 
   std::unique_ptr<MediatorTransport> transport_;
@@ -82,6 +83,11 @@ class BattleSession {
   int toast_ms_ = 0;
   bool self_is_host_ = true;
   int ping_accum_ms_ = 0;
+  std::uint32_t snap_seq_ = 1;
+  int snap_cooldown_ms_ = 0;
+  bool snap_pending_ = false;
+  std::uint8_t last_snap_bits_[kStackSnapBytes]{};
+  bool have_last_snap_ = false;
 };
 
 }  // namespace tp

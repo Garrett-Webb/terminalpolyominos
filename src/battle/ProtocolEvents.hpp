@@ -4,6 +4,7 @@
 #include "game/SrsKicks.hpp"
 #include "game/Types.hpp"
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <variant>
@@ -36,6 +37,10 @@ struct EvPose {
   std::uint8_t r = 0;
   std::uint8_t piece_id = 0;
 };
+struct EvStackSnap {
+  std::uint32_t seq = 0;
+  std::array<std::uint8_t, kStackSnapBytes> bits{};
+};
 struct EvTopOut {};
 struct EvForfeit {};
 struct EvRematchAccept {};
@@ -46,8 +51,8 @@ struct EvPing {
 struct EvBye {};
 
 using OutboundEvent = std::variant<EvConsent, EvJoinFriend, EvQueueRandom, EvDequeue, EvClearEvent,
-                                   EvPose, EvTopOut, EvForfeit, EvRematchAccept, EvRematchLeave,
-                                   EvPing, EvBye>;
+                                   EvPose, EvStackSnap, EvTopOut, EvForfeit, EvRematchAccept,
+                                   EvRematchLeave, EvPing, EvBye>;
 
 struct EvTokenShow {
   std::string token;

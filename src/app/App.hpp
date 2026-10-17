@@ -36,6 +36,7 @@ class App {
   void close_scores();
   void open_battle();
   void close_battle();
+  void begin_battle_with(std::unique_ptr<MediatorTransport> transport);
   void apply_settings(const Settings& s);
   void setup_keyboard();
   void start_game();

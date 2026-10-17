@@ -1,5 +1,7 @@
 #include "battle/BattleSession.hpp"
 
+#include "battle/ProtocolCodec.hpp"
+
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -146,6 +148,7 @@ void BattleSession::handle_inbound(const InboundEvent& ev) {
           }
         } else if constexpr (std::is_same_v<T, EvLobbyState>) {
           phase_ = BattleSessionPhase::Lobby;
+          self_is_host_ = msg.role == 0;
           view_.status = msg.peer_present ? "Opponent present" : "Waiting…";
         } else if constexpr (std::is_same_v<T, EvMatchStart>) {
           start_self_match(msg.seed_self, msg.ready_countdown_ms);
@@ -154,10 +157,21 @@ void BattleSession::handle_inbound(const InboundEvent& ev) {
           view_.hud.pending_incoming = self_.pending_incoming();
         } else if constexpr (std::is_same_v<T, EvOppSnapshot>) {
           view_.opp = msg.view;
+        } else if constexpr (std::is_same_v<T, EvPoseRelay>) {
+          // Pose-only preview: WP5 may draw active piece; keep session stable for now.
+          (void)msg;
         } else if constexpr (std::is_same_v<T, EvMatchOver>) {
+          EvMatchOver mapped = msg;
+          if (msg.winner_side != 255) {
+            WireMatchOver w;
+            w.reason = msg.wire_reason;
+            w.winner_side = msg.winner_side;
+            w.rematch_deadline_ms = msg.rematch_deadline_ms;
+            mapped = map_match_over(w, self_is_host_);
+          }
           phase_ = BattleSessionPhase::Result;
-          rematch_ms_ = msg.rematch_deadline_ms;
-          switch (msg.reason) {
+          rematch_ms_ = mapped.rematch_deadline_ms;
+          switch (mapped.reason) {
             case EvMatchOver::Reason::OppTopOut:
             case EvMatchOver::Reason::OppForfeit:
               result_ = BattleResultKind::Win;
@@ -182,6 +196,9 @@ void BattleSession::handle_inbound(const InboundEvent& ev) {
           view_.error = msg.text;
         } else if constexpr (std::is_same_v<T, EvPong>) {
           // ignore
+        } else if constexpr (std::is_same_v<T, EvBye>) {
+          phase_ = BattleSessionPhase::Error;
+          view_.error = "Peer disconnected";
         }
       },
       ev);
@@ -201,6 +218,18 @@ void BattleSession::drain_transport() {
 void BattleSession::tick(int elapsed_ms) {
   if (!transport_ || elapsed_ms < 0) {
     return;
+  }
+
+  if (!transport_->offline() && transport_->alive() &&
+      (phase_ == BattleSessionPhase::Lobby || phase_ == BattleSessionPhase::MatchReady ||
+       phase_ == BattleSessionPhase::Playing || phase_ == BattleSessionPhase::Rematch)) {
+    ping_accum_ms_ += elapsed_ms;
+    if (ping_accum_ms_ >= 5000) {
+      ping_accum_ms_ = 0;
+      EvPing ping;
+      ping.echo = static_cast<std::int64_t>(clear_seq_);
+      transport_->send(ping);
+    }
   }
 
   if (phase_ == BattleSessionPhase::MatchReady) {

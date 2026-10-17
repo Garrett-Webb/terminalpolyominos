@@ -20,13 +20,26 @@ add_library(tp_game STATIC
 target_include_directories(tp_game PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_compile_options(tp_game PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
+option(TP_ENABLE_BATTLE "TLS mediator transport (OpenSSL / Apple TLS)" OFF)
+option(TP_BATTLE_INSECURE "Plain TCP battle transport (dev only)" OFF)
+
 add_library(tp_battle STATIC
   src/battle/OppBoardView.cpp
   src/battle/LocalMediatorTransport.cpp
-  src/battle/BattleSession.cpp)
+  src/battle/BattleSession.cpp
+  src/battle/ProtocolCodec.cpp)
 target_include_directories(tp_battle PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(tp_battle PUBLIC tp_game)
 target_compile_options(tp_battle PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
+if(TP_BATTLE_INSECURE)
+  target_sources(tp_battle PRIVATE src/net/InsecureMediatorTransport.cpp)
+  target_compile_definitions(tp_battle PUBLIC TP_BATTLE_INSECURE=1)
+endif()
+
+if(TP_ENABLE_BATTLE)
+  message(FATAL_ERROR "TP_ENABLE_BATTLE (TLS transport) is not implemented yet; use -DTP_BATTLE_INSECURE=ON for dogfood")
+endif()
 
 add_executable(terminalpolyominos
   src/main.cpp
@@ -133,6 +146,25 @@ target_include_directories(tp_battle_session_tests PRIVATE
 target_link_libraries(tp_battle_session_tests PRIVATE tp_game tp_battle)
 target_compile_options(tp_battle_session_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME tp_battle_session_tests COMMAND tp_battle_session_tests)
+
+add_executable(tp_battle_codec_tests tests/test_battle_codec.cpp)
+target_include_directories(tp_battle_codec_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+target_link_libraries(tp_battle_codec_tests PRIVATE tp_battle)
+target_compile_options(tp_battle_codec_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME tp_battle_codec_tests COMMAND tp_battle_codec_tests
+  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+
+if(TP_BATTLE_INSECURE)
+  add_executable(tp_battle_insecure_smoke tests/test_battle_insecure_smoke.cpp)
+  target_include_directories(tp_battle_insecure_smoke PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+  target_link_libraries(tp_battle_insecure_smoke PRIVATE tp_battle)
+  target_compile_options(tp_battle_insecure_smoke PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME tp_battle_insecure_smoke COMMAND tp_battle_insecure_smoke)
+endif()
 
 add_executable(tp_input_tests tests/test_input.cpp src/input/Input.cpp src/terminal/Keys.cpp)
 target_include_directories(tp_input_tests PRIVATE

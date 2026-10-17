@@ -2,10 +2,16 @@
 
 #include "battle/LocalMediatorTransport.hpp"
 
+#if defined(TP_BATTLE_INSECURE)
+#include "net/InsecureMediatorTransport.hpp"
+#endif
+
 #include <chrono>
 #include <cctype>
+#include <cstdlib>
 #include <ctime>
 #include <random>
+#include <string>
 #include <thread>
 #include <utility>
 
@@ -85,12 +91,18 @@ void App::pause_if_not_focused() {
 }
 
 void App::open_battle() {
+  // Placeholder transport until Consent; replaced on Y/O.
   battle_ = std::make_unique<BattleSession>(std::make_unique<LocalMediatorTransport>());
   battle_menu_.open();
   screen_ = Screen::Battle;
   input_.reset();
   renderer_.invalidate();
   ui_dirty_ = true;
+}
+
+void App::begin_battle_with(std::unique_ptr<MediatorTransport> transport) {
+  battle_ = std::make_unique<BattleSession>(std::move(transport));
+  battle_->on_consent_accepted();
 }
 
 void App::close_battle() {
@@ -379,6 +391,25 @@ void App::pump_keys() {
       const bool playing = battle_->playing() && battle_menu_.phase() == BattleMenuPhase::Session;
       if (!playing || ev.key == Key::Esc || battle_menu_.phase() == BattleMenuPhase::ForfeitConfirm) {
         battle_menu_.on_key(ev, *battle_);
+        const BattleConsentChoice choice = battle_menu_.take_consent_choice();
+        if (choice == BattleConsentChoice::Local) {
+          begin_battle_with(std::make_unique<LocalMediatorTransport>());
+        }
+#if defined(TP_BATTLE_INSECURE)
+        else if (choice == BattleConsentChoice::Online) {
+          const char* host_env = std::getenv("TP_BATTLE_HOST");
+          const char* port_env = std::getenv("TP_BATTLE_PORT");
+          std::string host = host_env && host_env[0] ? host_env : "127.0.0.1";
+          std::uint16_t port = 9000;
+          if (port_env && port_env[0]) {
+            const int p = std::atoi(port_env);
+            if (p > 0 && p < 65536) {
+              port = static_cast<std::uint16_t>(p);
+            }
+          }
+          begin_battle_with(std::make_unique<InsecureMediatorTransport>(std::move(host), port));
+        }
+#endif
         if (battle_menu_.wants_abort_to_title() || battle_->wants_leave_to_title()) {
           close_battle();
         }

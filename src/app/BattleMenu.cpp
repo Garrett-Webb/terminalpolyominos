@@ -4,10 +4,25 @@
 
 namespace tp {
 
+bool BattleMenu::online_available() {
+#if defined(TP_BATTLE_INSECURE)
+  return true;
+#else
+  return false;
+#endif
+}
+
 void BattleMenu::open() {
   phase_ = BattleMenuPhase::Consent;
   token_buf_.clear();
   abort_title_ = false;
+  consent_choice_ = BattleConsentChoice::None;
+}
+
+BattleConsentChoice BattleMenu::take_consent_choice() {
+  const BattleConsentChoice c = consent_choice_;
+  consent_choice_ = BattleConsentChoice::None;
+  return c;
 }
 
 void BattleMenu::on_key(const KeyEvent& ev, BattleSession& session) {
@@ -18,10 +33,16 @@ void BattleMenu::on_key(const KeyEvent& ev, BattleSession& session) {
   if (phase_ == BattleMenuPhase::Consent) {
     if (ev.key == Key::Esc || (ev.key == Key::Char && (ev.ch == 'n' || ev.ch == 'N'))) {
       abort_title_ = true;
+      consent_choice_ = BattleConsentChoice::Abort;
+      return;
+    }
+    if (online_available() && ev.key == Key::Char && (ev.ch == 'o' || ev.ch == 'O')) {
+      consent_choice_ = BattleConsentChoice::Online;
+      phase_ = BattleMenuPhase::Session;
       return;
     }
     if (ev.key == Key::Enter || (ev.key == Key::Char && (ev.ch == 'y' || ev.ch == 'Y'))) {
-      session.on_consent_accepted();
+      consent_choice_ = BattleConsentChoice::Local;
       phase_ = BattleMenuPhase::Session;
       return;
     }
@@ -112,8 +133,13 @@ BattleMenuView BattleMenu::view(const BattleSession& session) const {
 
   if (phase_ == BattleMenuPhase::Consent) {
     v.title = "BATTLE";
-    v.line1 = "Hot-seat practice (offline). No network.";
-    v.line2 = "Y / Enter = continue    N / Esc = back";
+    if (online_available()) {
+      v.line1 = "Y = hot-seat (offline)    O = online (insecure TCP)";
+      v.line2 = "N / Esc = back";
+    } else {
+      v.line1 = "Hot-seat practice (offline). No network.";
+      v.line2 = "Y / Enter = continue    N / Esc = back";
+    }
     return v;
   }
   if (phase_ == BattleMenuPhase::ForfeitConfirm) {

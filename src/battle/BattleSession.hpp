@@ -80,6 +80,8 @@ class BattleSession {
   std::uint32_t clear_seq_ = 1;
   BattleResultKind result_ = BattleResultKind::None;
   int toast_ms_ = 0;
+  bool self_is_host_ = true;
+  int ping_accum_ms_ = 0;
 };
 
 }  // namespace tp

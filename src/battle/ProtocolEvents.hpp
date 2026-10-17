@@ -30,17 +30,24 @@ struct EvClearEvent {
   int lines_sent = 0;  // after cancel — apply this many to opponent
 };
 struct EvPose {
-  // Reserved for online silhouette streaming; unused in hot-seat v1.
+  std::uint32_t seq = 0;
+  std::int8_t x = 0;
+  std::int8_t y = 0;
+  std::uint8_t r = 0;
+  std::uint8_t piece_id = 0;
 };
 struct EvTopOut {};
 struct EvForfeit {};
 struct EvRematchAccept {};
 struct EvRematchLeave {};
-struct EvPing {};
+struct EvPing {
+  std::int64_t echo = 0;
+};
+struct EvBye {};
 
 using OutboundEvent = std::variant<EvConsent, EvJoinFriend, EvQueueRandom, EvDequeue, EvClearEvent,
                                    EvPose, EvTopOut, EvForfeit, EvRematchAccept, EvRematchLeave,
-                                   EvPing>;
+                                   EvPing, EvBye>;
 
 struct EvTokenShow {
   std::string token;
@@ -48,6 +55,7 @@ struct EvTokenShow {
 };
 struct EvLobbyState {
   bool peer_present = false;
+  std::uint8_t role = 0;  // 0 host, 1 joiner (wire)
 };
 struct EvMatchStart {
   std::uint64_t match_id = 0;
@@ -74,6 +82,9 @@ struct EvMatchOver {
   };
   Reason reason = Reason::SelfTopOut;
   int rematch_deadline_ms = 15000;
+  // Absolute wire fields (server MatchOver); optional for local transport.
+  std::uint8_t wire_reason = 0;
+  std::uint8_t winner_side = 255;
 };
 struct EvRematchStart {
   // Both accepted; new MatchStart will follow or this carries seeds.
@@ -82,14 +93,18 @@ struct EvRematchStart {
   int ready_countdown_ms = 3000;
 };
 struct EvError {
+  std::uint16_t code = 0;
   std::string text;
 };
 struct EvPong {
   std::int64_t server_time_ms = 0;
 };
+struct EvPoseRelay {
+  EvPose pose;
+};
 
 using InboundEvent =
     std::variant<EvTokenShow, EvLobbyState, EvMatchStart, EvGarbageApply, EvOppSnapshot, EvMatchOver,
-                 EvRematchStart, EvError, EvPong>;
+                 EvRematchStart, EvError, EvPong, EvPoseRelay, EvBye>;
 
 }  // namespace tp

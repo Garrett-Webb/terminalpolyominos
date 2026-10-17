@@ -126,6 +126,8 @@ void LocalMediatorTransport::send(const OutboundEvent& ev) {
           push(EvPong{});
         } else if constexpr (std::is_same_v<T, EvPose>) {
           // ignore
+        } else if constexpr (std::is_same_v<T, EvBye>) {
+          alive_ = false;
         }
       },
       ev);

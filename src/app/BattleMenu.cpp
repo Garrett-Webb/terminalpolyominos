@@ -17,6 +17,7 @@ void BattleMenu::open() {
   token_buf_.clear();
   abort_title_ = false;
   consent_choice_ = BattleConsentChoice::None;
+  token_focused_ = false;
 }
 
 BattleConsentChoice BattleMenu::take_consent_choice() {
@@ -66,9 +67,46 @@ void BattleMenu::on_key(const KeyEvent& ev, BattleSession& session) {
   const auto sp = session.view().phase;
 
   if (sp == BattleSessionPhase::Lobby) {
+    if (token_focused_) {
+      if (ev.key == Key::Esc) {
+        if (!token_buf_.empty()) {
+          token_buf_.clear();
+          return;
+        }
+        token_focused_ = false;
+        return;
+      }
+      if (ev.key == Key::Enter) {
+        if (!token_buf_.empty()) {
+          session.join_friend(token_buf_);
+          token_focused_ = false;
+        }
+        return;
+      }
+      if (ev.key == Key::Backspace) {
+        if (!token_buf_.empty()) {
+          token_buf_.pop_back();
+        }
+        return;
+      }
+      if (ev.key == Key::Char) {
+        const char c = static_cast<char>(std::toupper(static_cast<unsigned char>(ev.ch)));
+        const bool ok = (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || c == '-';
+        if (ok && token_buf_.size() < 9) {
+          token_buf_.push_back(c);
+        }
+      }
+      return;
+    }
+
+    // Lobby actions (token field not focused).
     if (ev.key == Key::Esc) {
       session.rematch_leave();
       abort_title_ = true;
+      return;
+    }
+    if (ev.key == Key::Char && (ev.ch == 't' || ev.ch == 'T')) {
+      token_focused_ = true;
       return;
     }
     if (ev.key == Key::Char && (ev.ch == 'r' || ev.ch == 'R')) {
@@ -76,25 +114,12 @@ void BattleMenu::on_key(const KeyEvent& ev, BattleSession& session) {
       return;
     }
     if (ev.key == Key::Enter) {
-      if (token_buf_.empty()) {
-        session.queue_random();
-      } else {
-        session.join_friend(token_buf_);
-      }
-      return;
-    }
-    if (ev.key == Key::Backspace) {
       if (!token_buf_.empty()) {
-        token_buf_.pop_back();
+        session.join_friend(token_buf_);
+      } else {
+        session.queue_random();
       }
       return;
-    }
-    if (ev.key == Key::Char) {
-      const char c = static_cast<char>(std::toupper(static_cast<unsigned char>(ev.ch)));
-      const bool ok = (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || c == '-';
-      if (ok && token_buf_.size() < 9) {
-        token_buf_.push_back(c);
-      }
     }
     return;
   }
@@ -130,6 +155,7 @@ BattleMenuView BattleMenu::view(const BattleSession& session) const {
   BattleMenuView v;
   v.phase = phase_;
   v.token_buf = token_buf_;
+  v.token_focused = token_focused_;
 
   if (phase_ == BattleMenuPhase::Consent) {
     v.title = "BATTLE";
@@ -154,7 +180,11 @@ BattleMenuView BattleMenu::view(const BattleSession& session) const {
       v.title = "LOBBY";
       v.line1 = "Your token:";
       v.line2 = sv.my_token.empty() ? "…" : sv.my_token;
-      v.line3 = "Type friend token + Enter | R random | Esc leave";
+      if (token_focused_) {
+        v.line3 = "Type friend token + Enter join | Esc clear / back";
+      } else {
+        v.line3 = "T = type token | R random | Esc leave";
+      }
       v.show_token_entry = true;
       break;
     case BattleSessionPhase::MatchReady:
@@ -181,7 +211,7 @@ BattleMenuView BattleMenu::view(const BattleSession& session) const {
           v.line1 = "…";
           break;
       }
-      v.line2 = "Enter rematch    Esc leave";
+      v.line2 = sv.status.empty() ? "Enter rematch    Esc leave" : sv.status;
       break;
     }
     case BattleSessionPhase::Error:

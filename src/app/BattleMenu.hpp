@@ -30,6 +30,7 @@ struct BattleMenuView {
   std::string_view line3{};
   std::string token_buf{};
   bool show_token_entry = false;
+  bool token_focused = false;
 };
 
 class BattleMenu {
@@ -49,6 +50,7 @@ class BattleMenu {
   std::string token_buf_;
   bool abort_title_ = false;
   BattleConsentChoice consent_choice_ = BattleConsentChoice::None;
+  bool token_focused_ = false;
 };
 
 }  // namespace tp

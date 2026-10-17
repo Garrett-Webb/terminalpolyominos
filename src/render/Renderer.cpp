@@ -1628,6 +1628,9 @@ void Renderer::draw_battle_prompt(std::string_view title, std::string_view line1
                                   std::string_view line2, std::string_view line3,
                                   std::string_view token_entry, const Keybinds& keybinds) {
   const TermSize sz = term_.size();
+  // Full clear: prompts are often drawn after a battle frame; starting from prev_
+  // leaves board cells / "YOU WIN" mashed into lobby/error text.
+  canvas_.request_clear();
   canvas_.begin(sz);
   const int content_w = std::min(56, std::max(20, sz.cols - 4));
   const int col = std::max(1, (sz.cols - content_w) / 2 + 1);
@@ -1666,7 +1669,7 @@ void Renderer::draw_battle_prompt(std::string_view title, std::string_view line1
     line(line3);
   }
   if (!token_entry.empty()) {
-    line(std::string("> ") + std::string(token_entry) + "_", 7, false);
+    line(token_entry, 7, false);
   }
   (void)keybinds;
   canvas_.present(term_);

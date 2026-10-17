@@ -596,7 +596,13 @@ int App::run() {
           const auto mv = battle_menu_.view(*battle_);
           std::string entry;
           if (mv.show_token_entry) {
-            entry = mv.token_buf;
+            if (mv.token_focused) {
+              entry = "> " + mv.token_buf + "_";
+            } else if (!mv.token_buf.empty()) {
+              entry = "  " + mv.token_buf;
+            } else {
+              entry = "  [T = type friend token]";
+            }
           }
           renderer_.draw_battle_prompt(mv.title, mv.line1, mv.line2, mv.line3, entry,
                                        settings_.input.keys);

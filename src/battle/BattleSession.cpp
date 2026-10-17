@@ -85,6 +85,12 @@ void BattleSession::rematch_accept() {
   if (phase_ != BattleSessionPhase::Rematch || !transport_) {
     return;
   }
+  if (!transport_->offline()) {
+    // S-WP5 not landed — keep result screen; avoid protocol Error spam.
+    view_.status = "Rematch not available yet — Esc to leave";
+    sync_view();
+    return;
+  }
   transport_->send(EvRematchAccept{});
   drain_transport();
   sync_view();
@@ -96,11 +102,16 @@ void BattleSession::rematch_leave() {
     return;
   }
   if (phase_ == BattleSessionPhase::Rematch || phase_ == BattleSessionPhase::Result) {
-    transport_->send(EvRematchLeave{});
-    drain_transport();
-    if (phase_ == BattleSessionPhase::Lobby) {
-      // stay in lobby
+    if (transport_->offline()) {
+      transport_->send(EvRematchLeave{});
+      drain_transport();
+    } else {
+      // Online rematch not ready (S-WP5) — Bye instead of RematchLeave→Error spam.
+      transport_->send(EvBye{});
+      transport_->close();
     }
+    leave_title_ = true;
+    phase_ = BattleSessionPhase::Idle;
     sync_view();
     return;
   }
